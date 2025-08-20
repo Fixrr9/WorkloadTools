@@ -59,7 +59,14 @@ namespace WorkloadViewer.Model
                 {
                     cmd.CommandText = "SELECT TOP(1) end_time FROM " + ConnectionInfo.SchemaName + ".Intervals ORDER BY interval_id ASC ";
                     cmd.CommandTimeout = 0;
-                    StartDate = (DateTime)cmd.ExecuteScalar();
+                    try
+                    {
+                        StartDate = (DateTime)cmd.ExecuteScalar();
+                    }
+                    catch (Exception)
+                    {
+                        StartDate = DateTime.Today;
+                    }
                 }
 
                 using (var cmd = conn.CreateCommand())
