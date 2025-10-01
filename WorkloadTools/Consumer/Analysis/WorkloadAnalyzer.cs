@@ -42,6 +42,7 @@ namespace WorkloadTools.Consumer.Analysis
 
         private DataTable counterData;
         private DataTable waitsData;
+        private DataTable diskPerfData;
 
         public int MaximumWriteRetries { get; set; }
 		public bool TruncateTo4000 { get; set; }
@@ -230,6 +231,11 @@ namespace WorkloadTools.Consumer.Analysis
             {
                 InternalAdd(waitStatsEvent);
             }
+
+            if (evt is DiskPerfWorkloadEvent diskPerfEvent)
+            {
+                InternalAdd(diskPerfEvent);
+            }
         }
 
 		private void InternalAdd(ErrorWorkloadEvent evt)
@@ -249,6 +255,18 @@ namespace WorkloadTools.Consumer.Analysis
             else
             {
                 waitsData.Merge(evt.Waits);
+            }
+        }
+
+        private void InternalAdd(DiskPerfWorkloadEvent evt)
+        {
+            if (diskPerfData == null)
+            {
+                diskPerfData = evt.DiskPerf;
+            }
+            else
+            {
+                diskPerfData.Merge(evt.DiskPerf);
             }
         }
 
@@ -448,6 +466,7 @@ namespace WorkloadTools.Consumer.Analysis
                         WriteExecutionErrors(conn, tran, current_interval_id);
                         WritePerformanceCounters(conn, tran, current_interval_id);
                         WriteWaitsData(conn, tran, current_interval_id);
+                        WriteDiskPerf(conn, tran, current_interval_id);
                     }
 
                     tran.Commit();
@@ -510,6 +529,74 @@ namespace WorkloadTools.Consumer.Analysis
                 }
                 waitsData.Dispose();
                 waitsData = null;
+            }
+        }
+
+        private void WriteDiskPerf(SqlConnection conn, SqlTransaction tran, int current_interval_id)
+        {
+            if (diskPerfData == null)
+            {
+                return;
+            }
+
+            lock (diskPerfData)
+            {
+                using (var bulkCopy = new System.Data.SqlClient.SqlBulkCopy(conn,
+                                                SqlBulkCopyOptions.KeepIdentity |
+                                                SqlBulkCopyOptions.FireTriggers |
+                                                SqlBulkCopyOptions.CheckConstraints |
+                                                SqlBulkCopyOptions.TableLock,
+                                                tran))
+                {
+
+                    bulkCopy.DestinationTableName = "[" + ConnectionInfo.SchemaName + "].[DiskPerf]";
+                    bulkCopy.BatchSize = 1000;
+                    bulkCopy.BulkCopyTimeout = 300;
+
+                    var Table = from t in diskPerfData.AsEnumerable()
+                                group t by new
+                                {
+                                    database_name = t.Field<string>("database_name"),
+                                    physical_filename = t.Field<string>("physical_filename"),
+                                    logical_filename = t.Field<string>("logical_filename"),
+                                    file_type = t.Field<string>("file_type"),
+                                    volume_mount_point = t.Field<string>("volume_mount_point"),
+                                }
+                                into grp
+                                select new
+                                {
+                                    interval_id = current_interval_id,
+
+                                    grp.Key.database_name,
+                                    grp.Key.physical_filename,
+                                    grp.Key.logical_filename,
+                                    grp.Key.file_type,
+                                    grp.Key.volume_mount_point,
+
+                                    read_latency_ms = grp.Average(t => t.Field<double>("read_latency_ms")),
+                                    reads = grp.Sum(t => t.Field<double>("reads")),
+                                    read_bytes = grp.Sum(t => t.Field<double>("read_bytes")),
+                                    write_latency_ms = grp.Average(t => t.Field<double>("write_latency_ms")),
+                                    writes = grp.Sum(t => t.Field<double>("writes")),
+                                    write_bytes = grp.Sum(t => t.Field<double>("write_bytes")),
+
+                                    cum_read_latency_ms = grp.Max(t => t.Field<double?>("cum_read_latency_ms")),
+                                    cum_reads = grp.Max(t => t.Field<double?>("cum_reads")),
+                                    cum_read_bytes = grp.Max(t => t.Field<double?>("cum_read_bytes")),
+                                    cum_write_latency_ms = grp.Max(t => t.Field<double?>("cum_write_latency_ms")),
+                                    cum_writes = grp.Max(t => t.Field<double?>("cum_writes")),
+                                    cum_write_bytes = grp.Max(t => t.Field<double?>("cum_write_bytes"))
+                                };
+
+                    using (var dt = DataUtils.ToDataTable(Table))
+                    {
+                        bulkCopy.WriteToServer(dt);
+                    }
+
+                    logger.Info("Disk perf written");
+                }
+                diskPerfData.Dispose();
+                diskPerfData = null;
             }
         }
 

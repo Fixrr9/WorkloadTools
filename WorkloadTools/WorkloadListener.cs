@@ -309,6 +309,7 @@ namespace WorkloadTools
             }
         }
 
+
         private DataTable GetDiffWaits(DataTable newWaits, DataTable lastWaits)
         {
             // no baseline established already
@@ -449,6 +450,200 @@ namespace WorkloadTools
                                   resource_sec = Convert.ToDouble(table1["resource_sec"]),
                                   signal_sec = Convert.ToDouble(table1["signal_sec"]),
                                   wait_count = Convert.ToDouble(table1["wait_count"])
+                              };
+
+                return DataUtils.ToDataTable(results);
+            }
+        }
+
+
+        protected virtual void ReadDiskPerformanceEvents()
+        {
+            try
+            {
+                DataTable lastDiskPerf = null;
+                while (!stopped)
+                {
+                    var evt = new DiskPerfWorkloadEvent();
+                    evt.Type = WorkloadEvent.EventType.DiskPerf;
+                    evt.StartTime = DateTime.Now;
+
+                    var newDiskPerf = GetDiskPerf();
+                    evt.DiskPerf = GetDiffDiskPerf(newDiskPerf, lastDiskPerf);
+                    lastDiskPerf = newDiskPerf;
+
+                    Events.Enqueue(evt);
+
+                    Thread.Sleep(StatsCollectionIntervalSeconds * 1000); // 1 minute
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex.Message);
+                logger.Error(ex.StackTrace);
+
+                if (ex.InnerException != null)
+                {
+                    logger.Error(ex.InnerException.Message);
+                }
+            }
+        }
+
+        private DataTable GetDiffDiskPerf(DataTable newDiskPerf, DataTable lastDiskPerf)
+        {
+            // no baseline established already
+            // return all zeros
+            if (lastDiskPerf == null)
+            {
+                var result = newDiskPerf.Clone();
+
+                if (!result.Columns.Contains("cum_read_latency_ms")) _ = result.Columns.Add("cum_read_latency_ms", typeof(double));
+                if (!result.Columns.Contains("cum_reads")) _ = result.Columns.Add("cum_reads", typeof(double));
+                if (!result.Columns.Contains("cum_read_bytes")) _ = result.Columns.Add("cum_read_bytes", typeof(double));
+                if (!result.Columns.Contains("cum_write_latency_ms")) _ = result.Columns.Add("cum_write_latency_ms", typeof(double));
+                if (!result.Columns.Contains("cum_writes")) _ = result.Columns.Add("cum_writes", typeof(double));
+                if (!result.Columns.Contains("cum_write_bytes")) _ = result.Columns.Add("cum_write_bytes", typeof(double));
+
+                foreach (DataRow dr in newDiskPerf.Rows)
+                {
+                    var nr = result.Rows.Add();
+                    nr["database_name"] = dr["database_name"];
+                    nr["physical_filename"] = dr["physical_filename"];
+                    nr["logical_filename"] = dr["logical_filename"];
+                    nr["file_type"] = dr["file_type"];
+                    nr["read_latency_ms"] = 0;
+                    nr["reads"] = 0;
+                    nr["read_bytes"] = 0;
+                    nr["write_latency_ms"] = 0;
+                    nr["writes"] = 0;
+                    nr["write_bytes"] = 0;
+                    nr["cum_read_latency_ms"] = 0;
+                    nr["cum_reads"] = 0;
+                    nr["cum_read_bytes"] = 0;
+                    nr["cum_write_latency_ms"] = 0;
+                    nr["cum_writes"] = 0;
+                    nr["cum_write_bytes"] = 0;
+
+                    if (newDiskPerf.Columns.Contains("volume_mount_point"))
+                    {
+                        nr["volume_mount_point"] = dr["volume_mount_point"];
+                    }
+                }
+                return result;
+            }
+
+
+            var results = from table1 in newDiskPerf.AsEnumerable()
+                          join table2 in lastDiskPerf.AsEnumerable()
+                                on new 
+                                {
+                                    database_name = table1["database_name"], 
+                                    physical_filename = table1["physical_filename"], 
+                                    logical_filename = table1["logical_filename"], 
+                                    file_type = table1["file_type"], 
+                                    volume_mount_point = table1["volume_mount_point"]
+                                } 
+                                equals new 
+                                { 
+                                    database_name = table2["database_name"], 
+                                    physical_filename = table2["physical_filename"], 
+                                    logical_filename = table2["logical_filename"], 
+                                    file_type = table2["file_type"], 
+                                    volume_mount_point = table2["volume_mount_point"] 
+                                }
+                          select new
+                          {
+                              database_name      = Convert.ToString(table1["database_name"]),
+                              physical_filename  = Convert.ToString(table1["physical_filename"]),
+                              logical_filename   = Convert.ToString(table1["logical_filename"]),
+                              file_type          = Convert.ToString(table1["file_type"]),
+                              volume_mount_point = Convert.ToString(table1["volume_mount_point"]),
+                              read_latency_ms    = Convert.ToDouble(table1["read_latency_ms"]) - Convert.ToDouble(table2["read_latency_ms"]),
+                              reads              = Convert.ToDouble(table1["reads"]) - Convert.ToDouble(table2["reads"]),
+                              read_bytes         = Convert.ToDouble(table1["read_bytes"]) - Convert.ToDouble(table2["read_bytes"]),
+                              write_latency_ms   = Convert.ToDouble(table1["write_latency_ms"]) - Convert.ToDouble(table2["write_latency_ms"]),
+                              writes             = Convert.ToDouble(table1["writes"]) - Convert.ToDouble(table2["writes"]),
+                              write_bytes        = Convert.ToDouble(table1["write_bytes"]) - Convert.ToDouble(table2["write_bytes"]),
+
+                              cum_read_latency_ms  = Convert.ToDouble(table1["read_latency_ms"]),
+                              cum_reads            = Convert.ToDouble(table1["reads"]),
+                              cum_read_bytes       = Convert.ToDouble(table1["read_bytes"]),
+                              cum_write_latency_ms = Convert.ToDouble(table1["write_latency_ms"]),
+                              cum_writes           = Convert.ToDouble(table1["writes"]),
+                              cum_write_bytes      = Convert.ToDouble(table1["write_bytes"]),
+                          };
+
+            return DataUtils.ToDataTable(results);
+        }
+
+        private DataTable GetDiskPerf()
+        {
+
+            using (var conn = new SqlConnection())
+            {
+                conn.ConnectionString = ConnectionInfo.ConnectionString();
+                conn.Open();
+                // Calculate disk performance
+                var sql = @"
+                    DECLARE
+	                     @SqlStatement AS nvarchar(max)
+	                    ,@MajorMinorVersion AS int = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar),4) AS int) * 100 + CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar),3) AS int)
+	                    ,@Columns AS nvarchar(max) = ''
+	                    ,@Tables AS nvarchar(max) = ''
+
+                    IF CAST(SERVERPROPERTY('ProductVersion') AS varchar(50)) >= '10.50.2500.0' BEGIN
+	                    SET @Columns += N'
+	                    ,vs.[volume_mount_point]'
+	                    SET @Tables += N'
+	                    CROSS APPLY sys.dm_os_volume_stats(mf.[database_id], mf.[file_id]) AS vs'
+                    END
+
+                    SET @SqlStatement = N'
+                    SELECT
+	                     DB_NAME(vfs.[database_id]) AS [database_name]
+	                    ,COALESCE(mf.[physical_name],''RBPEX'') AS [physical_filename]	--RPBEX = Resilient Buffer Pool Extension
+	                    ,COALESCE(mf.[name],''RBPEX'') AS [logical_filename]	--RPBEX = Resilient Buffer Pool Extension
+	                    ,mf.[type_desc] AS [file_type]
+	                    ,vfs.[io_stall_read_ms] AS [read_latency_ms]
+	                    ,vfs.[num_of_reads] AS [reads]
+	                    ,vfs.[num_of_bytes_read] AS [read_bytes]
+	                    ,vfs.[io_stall_write_ms] AS [write_latency_ms]
+	                    ,vfs.[num_of_writes] AS [writes]
+	                    ,vfs.[num_of_bytes_written] AS [write_bytes]'
+	                    + @Columns + N'
+                    FROM sys.dm_io_virtual_file_stats(NULL, NULL) AS vfs
+                    INNER JOIN sys.master_files AS mf WITH (NOLOCK)
+	                    ON vfs.[database_id] = mf.[database_id] AND vfs.[file_id] = mf.[file_id]'
+                    + @Tables + ' OPTION (RECOMPILE)';
+
+                    EXEC sp_executesql @SqlStatement
+                ";
+
+                DataTable diskPerf = null;
+
+                using (var adapter = new SqlDataAdapter(sql, conn))
+                {
+                    using (var ds = new DataSet())
+                    {
+                        _ = adapter.Fill(ds);
+                        diskPerf = ds.Tables[0];
+                    }
+                }
+
+                var results = from table1 in diskPerf.AsEnumerable()
+                              select new
+                              {
+                                  database_name      = Convert.ToString(table1["database_name"]),
+                                  physical_filename  = Convert.ToString(table1["physical_filename"]),
+                                  logical_filename   = Convert.ToString(table1["logical_filename"]),
+                                  file_type          = Convert.ToString(table1["file_type"]),
+                                  volume_mount_point = Convert.ToString(table1["volume_mount_point"]),
+                                  read_latency_ms    = Convert.ToDouble(table1["read_latency_ms"]),
+                                  reads              = Convert.ToDouble(table1["reads"]),
+                                  read_bytes         = Convert.ToDouble(table1["read_bytes"]),
+                                  write_latency_ms   = Convert.ToDouble(table1["write_latency_ms"]),
+                                  writes             = Convert.ToDouble(table1["writes"]),
+                                  write_bytes        = Convert.ToDouble(table1["write_bytes"]),
                               };
 
                 return DataUtils.ToDataTable(results);

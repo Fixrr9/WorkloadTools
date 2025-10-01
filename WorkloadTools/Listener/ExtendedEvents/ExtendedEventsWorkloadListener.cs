@@ -157,6 +157,9 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
                 // Initialize the source of wait stats events
                 _ = Task.Factory.StartNew(() => ReadWaitStatsEvents());
+
+                // Initialize the source of disk performance stats
+                _ = Task.Factory.StartNew(() => ReadDiskPerformanceEvents());
             }
         }
 

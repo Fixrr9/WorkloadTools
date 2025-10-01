@@ -19,6 +19,7 @@ namespace WorkloadTools
             Timeout = 5,
             WAIT_stats = 6,
             Error = 7,
+            DiskPerf = 8,
             Unknown = -1
         }
 

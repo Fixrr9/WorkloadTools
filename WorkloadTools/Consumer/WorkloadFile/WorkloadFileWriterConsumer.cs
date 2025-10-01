@@ -34,6 +34,7 @@ namespace WorkloadTools.Consumer.WorkloadFile
         private SQLiteCommand events_cmd;
         private SQLiteCommand events_update_cmd;
         private SQLiteCommand waits_cmd;
+        private SQLiteCommand diskperf_cmd;
         private SQLiteCommand counters_cmd;
 
         private long _rowsInserted = 0;
@@ -115,6 +116,43 @@ namespace WorkloadTools.Consumer.WorkloadFile
                     $row_id,
                     $name,
                     $value
+                );";
+
+
+        private readonly string insert_diskperf = @"
+                INSERT INTO DiskPerf (
+                    row_id,
+                    database_name,
+                    physical_filename,
+                    logical_filename,
+                    file_type,
+                    volume_mount_point,
+                    read_latency_ms,
+                    reads,
+                    write_bytes,
+                    write_latency_ms,
+                    writes,
+                    write_bytes
+                )
+                VALUES (
+                    $row_id,
+                    $database_name,
+                    $physical_filename,
+                    $logical_filename,
+                    $file_type,
+                    $volume_mount_point,
+                    $read_latency_ms,
+                    $reads,
+                    $write_bytes,
+                    $write_latency_ms,
+                    $writes,
+                    $write_bytes,
+                    $cum_read_latency_ms,
+                    $cum_reads,
+                    $cum_write_bytes,
+                    $cum_write_latency_ms,
+                    $cum_writes,
+                    $cum_write_bytes
                 );";
 
         private readonly Queue<WorkloadEvent> cache = new Queue<WorkloadEvent>(CACHE_SIZE);
@@ -210,6 +248,11 @@ namespace WorkloadTools.Consumer.WorkloadFile
                 waits_cmd = new SQLiteCommand(insert_waits, conn);
             }
 
+            if (diskperf_cmd == null)
+            {
+                diskperf_cmd = new SQLiteCommand(insert_diskperf, conn);
+            }
+
             if (counters_cmd == null)
             {
                 counters_cmd = new SQLiteCommand(insert_counters, conn);
@@ -285,6 +328,11 @@ namespace WorkloadTools.Consumer.WorkloadFile
                     InsertWaitEvent(evnt);
                 }
 
+                if (evnt is DiskPerfWorkloadEvent)
+                {
+                    InsertDiskPerfEvent(evnt);
+                }
+
                 _rowsInserted++;
                 if ((_rowsInserted % CACHE_SIZE == 0) || forceFlush)
                 {
@@ -313,6 +361,52 @@ namespace WorkloadTools.Consumer.WorkloadFile
         {
             var evt = (WaitStatsWorkloadEvent)evnt;
 
+            _ = waits_cmd.Parameters.AddWithValue("$row_id", row_id++);
+            _ = waits_cmd.Parameters.AddWithValue("$event_sequence", null);
+            _ = waits_cmd.Parameters.AddWithValue("$event_type", evt.Type);
+            _ = waits_cmd.Parameters.AddWithValue("$start_time", evt.StartTime);
+            _ = waits_cmd.Parameters.AddWithValue("$client_app_name", null);
+            _ = waits_cmd.Parameters.AddWithValue("$client_host_name", null);
+            _ = waits_cmd.Parameters.AddWithValue("$database_name", null);
+            _ = waits_cmd.Parameters.AddWithValue("$server_principal_name", null);
+            _ = waits_cmd.Parameters.AddWithValue("$session_id", null);
+            _ = waits_cmd.Parameters.AddWithValue("$sql_text", null);
+            _ = waits_cmd.Parameters.AddWithValue("$cpu", null);
+            _ = waits_cmd.Parameters.AddWithValue("$duration", null);
+            _ = waits_cmd.Parameters.AddWithValue("$reads", null);
+            _ = waits_cmd.Parameters.AddWithValue("$writes", null);
+
+            _ = waits_cmd.ExecuteNonQuery();
+
+            var tran = conn.BeginTransaction();
+            try
+            {
+
+                foreach (DataRow dr in evt.Waits.Rows)
+                {
+                    _ = waits_cmd.Parameters.AddWithValue("$row_id", row_id);
+                    _ = waits_cmd.Parameters.AddWithValue("$wait_type", dr["wait_type"]);
+                    _ = waits_cmd.Parameters.AddWithValue("$wait_sec", dr["wait_sec"]);
+                    _ = waits_cmd.Parameters.AddWithValue("$resource_sec", dr["resource_sec"]);
+                    _ = waits_cmd.Parameters.AddWithValue("$signal_sec", dr["signal_sec"]);
+                    _ = waits_cmd.Parameters.AddWithValue("$wait_count", dr["wait_count"]);
+
+                    _ = waits_cmd.ExecuteNonQuery();
+                }
+
+                tran.Commit();
+            }
+            catch (Exception)
+            {
+                tran.Rollback();
+                throw;
+            }
+        }
+
+
+        private void InsertDiskPerfEvent(WorkloadEvent evnt)
+        {
+            var evt = (DiskPerfWorkloadEvent)evnt;
             _ = events_cmd.Parameters.AddWithValue("$row_id", row_id++);
             _ = events_cmd.Parameters.AddWithValue("$event_sequence", null);
             _ = events_cmd.Parameters.AddWithValue("$event_type", evt.Type);
@@ -334,16 +428,28 @@ namespace WorkloadTools.Consumer.WorkloadFile
             try
             {
 
-                foreach (DataRow dr in evt.Waits.Rows)
+                foreach (DataRow dr in evt.DiskPerf.Rows)
                 {
-                    _ = waits_cmd.Parameters.AddWithValue("$row_id", row_id);
-                    _ = waits_cmd.Parameters.AddWithValue("$wait_type", dr["wait_type"]);
-                    _ = waits_cmd.Parameters.AddWithValue("$wait_sec", dr["wait_sec"]);
-                    _ = waits_cmd.Parameters.AddWithValue("$resource_sec", dr["resource_sec"]);
-                    _ = waits_cmd.Parameters.AddWithValue("$signal_sec", dr["signal_sec"]);
-                    _ = waits_cmd.Parameters.AddWithValue("$wait_count", dr["wait_count"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$row_id", row_id);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$database_name", dr["database_name"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$physical_filename", dr["physical_filename"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$logical_filename", dr["logical_filename"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$file_type", dr["file_type"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$volume_mount_point", dr["volume_mount_point"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$read_latency_ms", dr["read_latency_ms"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$reads", dr["reads"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$read_bytes", dr["read_bytes"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$write_latency_ms", dr["write_latency_ms"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$writes", dr["writes"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$write_bytes", dr["write_bytes"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$cum_read_latency_ms", dr["cum_read_latency_ms"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$cum_reads", dr["cum_reads"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$cum_read_bytes", dr["cum_read_bytes"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$cum_write_latency_ms", dr["cum_write_latency_ms"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$cum_writes", dr["cum_writes"]);
+                    _ = diskperf_cmd.Parameters.AddWithValue("$cum_write_bytes", dr["cum_write_bytes"]);
 
-                    _ = waits_cmd.ExecuteNonQuery();
+                    _ = counters_cmd.ExecuteNonQuery();
                 }
 
                 tran.Commit();
@@ -455,6 +561,29 @@ CREATE TABLE IF NOT EXISTS Waits (
     signal_sec INTEGER NULL,
     wait_count INTEGER NULL 
 );
+
+
+CREATE TABLE IF NOT EXISTS DiskPerf (
+    row_id INTEGER,
+    database_name TEXT NULL,
+    physical_filename TEXT NULL,
+    logical_filename TEXT NULL,
+    file_type TEXT NULL,
+    volume_mount_point TEXT NULL,
+    read_latency_ms INTEGER NULL,
+    reads INTEGER NULL,
+    read_bytes INTEGER NULL,
+    write_latency_ms INTEGER NULL,
+    writes INTEGER NULL,
+    write_bytes INTEGER NULL,
+    cum_read_latency_ms INTEGER NULL,
+    cum_reads INTEGER NULL,
+    cum_read_bytes INTEGER NULL,
+    cum_write_latency_ms INTEGER NULL,
+    cum_writes INTEGER NULL,
+    cum_write_bytes INTEGER NULL
+);
+
 
 INSERT INTO FileProperties (name, value)
 SELECT 'FormatVersion','{Assembly.GetEntryAssembly().GetName().Version}'

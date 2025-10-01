@@ -9,10 +9,13 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>WorkloadTools</RootNamespace>
     <AssemblyName>WorkloadTools</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetFrameworkIdentifier>.NETFramework</TargetFrameworkIdentifier>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -275,6 +278,7 @@
     <Compile Include="Util\ModelConverter.cs" />
     <Compile Include="Util\RingBuffer.cs" />
     <Compile Include="Util\StringExtensions.cs" />
+    <Compile Include="DiskPerfWorkloadEvent.cs" />
     <Compile Include="WaitStatsWorkloadEvent.cs" />
     <Compile Include="Consumer\WorkloadConsumer.cs" />
     <Compile Include="WorkloadController.cs" />

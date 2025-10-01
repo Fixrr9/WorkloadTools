@@ -270,6 +270,13 @@ namespace WorkloadTools.Listener.File
                             Type = type
                         };
 
+                    case WorkloadEvent.EventType.DiskPerf:
+                        return new DiskPerfWorkloadEvent
+                        {
+                            StartTime = reader.GetDateTime(reader.GetOrdinal("start_time")),
+                            Type = type
+                        };
+
                     case WorkloadEvent.EventType.Error:
                         return new ErrorWorkloadEvent
                         {
@@ -349,6 +356,12 @@ namespace WorkloadTools.Listener.File
 
         protected override void ReadWaitStatsEvents()
         {
+            // Why nothing read here?
+        }
+
+        protected override void ReadDiskPerformanceEvents()
+        {
+            // Why nothing read here?
         }
 
         private void ReadCounters(long row_id, CounterWorkloadEvent cev)
@@ -425,7 +438,7 @@ namespace WorkloadTools.Listener.File
                 // 5 - Timeout
                 // 6 - WaitStats
                 // 7 - Error
-                filters += "OR event_type IN (4,5,6,7)";
+                filters += "OR event_type IN (4,5,6,7,8)";
             }
 
             return filters;

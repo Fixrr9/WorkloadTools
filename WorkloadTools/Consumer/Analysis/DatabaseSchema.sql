@@ -150,6 +150,29 @@ CREATE TABLE [{SchemaName}].[WaitStats](
     [wait_count] [bigint] NOT NULL
 )
 
+IF OBJECT_ID('{SchemaName}.DiskPerf') IS NULL
+
+CREATE TABLE [{SchemaName}].[DiskPerf] (
+    [interval_id] [int] NOT NULL,
+    [database_name] nvarchar(128) NULL,
+    [physical_filename] nvarchar(128) NULL,
+    [logical_filename] nvarchar(128) NULL,
+    [file_type] nvarchar(128) NULL,
+    [volume_mount_point] nvarchar(128) NULL,
+    [read_latency_ms] int NULL,
+    [reads] int NULL,
+    [read_bytes] int NULL,
+    [write_latency_ms] int NULL,
+    [writes] int NULL,
+    [write_bytes] int NULL,
+    [cum_read_latency_ms] bigint NULL,
+    [cum_reads] bigint NULL,
+    [cum_read_bytes] bigint NULL,
+    [cum_write_latency_ms] bigint NULL,
+    [cum_writes] bigint NULL,
+    [cum_write_bytes] bigint NULL
+);
+
 
 IF OBJECT_ID('{SchemaName}.Errors') IS NULL
 
