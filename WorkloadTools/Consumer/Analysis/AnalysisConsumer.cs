@@ -1,8 +1,11 @@
-﻿using NLog;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
+
+using NLog;
+
 using WorkloadTools.Consumer.Analysis;
 
 namespace WorkloadTools.Consumer.Analysis
@@ -61,7 +64,9 @@ namespace WorkloadTools.Consumer.Analysis
 
         public override bool HasMoreEvents()
         {
-            return analyzer.HasEventsQueued || !Buffer.IsEmpty;
+            return analyzer.HasEventsQueued || buffer.Count > 0;
+
+            
         }
 
         protected override void Dispose(bool disposing)
@@ -73,5 +78,15 @@ namespace WorkloadTools.Consumer.Analysis
             }
         }
 
+        public override void WaitForCompletion(TimeSpan timeout)
+        {
+            var start = DateTime.Now;
+
+            stopped = true;
+            while (buffer.Count > 0 && DateTime.Now - start < timeout)
+            {
+                Thread.Sleep(100);
+            }
+        }
     }
 }

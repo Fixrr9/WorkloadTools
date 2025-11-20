@@ -116,17 +116,17 @@ namespace WorkloadTools.Consumer.Replay
 
             if (totalEventCount > 0)
             {
-                if (eventCount % (totalEventCount / 1000) == 0)
+                if ((double)eventCount % ((double)totalEventCount / 1000) == 0)
                 {
                     var percentInfo = (double)eventCount / (double)totalEventCount;
-                    logger.Info("{eventCount} ({percentInfo:P}) events replayed - {bufferedEventCount} events buffered", eventCount, percentInfo, Buffer.Count);
+                    logger.Info("{eventCount} ({percentInfo:P}) events replayed - {bufferedEventCount} events buffered", eventCount, percentInfo, buffer.Count);
                 }
             }
             else
             {
                 if (eventCount % WorkerStatsCommandCount == 0)
                 {
-                    logger.Info("{eventCount} events replayed - {bufferedEventCount} events buffered", eventCount, Buffer.Count);
+                    logger.Info("{eventCount} events replayed - {bufferedEventCount} events buffered", eventCount, buffer.Count);
                 }
             }
 
@@ -153,23 +153,11 @@ namespace WorkloadTools.Consumer.Replay
 
             var workerKey = WorkerKey(evt);
 
-            if (ReplayWorkers.TryGetValue(workerKey, out var rw))
+            // Ensure that the buffer does not get too big
+           var rw = ReplayWorkers.GetOrAdd(workerKey, key =>
             {
-                // Ensure that the buffer does not get too big
-                while (rw.QueueLength >= (BufferSize * .9))
-                {
-                    spin.SpinOnce();
-                }
-
-                if (stopped) { return; }
-
-                rw.AppendCommand(command);
-            }
-            else
-            {
-                logger.Debug("Creating Worker {Worker}", workerKey);
-
-                rw = new ReplayWorker(workerKey)
+                logger.Debug("Creating Worker {Worker}", key);
+                return new ReplayWorker(key)
                 {
                     ConnectionInfo = ConnectionInfo,
                     ReplayIntervalSeconds = 0,
@@ -187,12 +175,9 @@ namespace WorkloadTools.Consumer.Replay
                     RaiseErrorsToSqlEventTracing = RaiseErrorsToSqlEventTracing,
                     RelativeDelays = RelativeDelays
                 };
+            });
+            rw.AppendCommand(command);
 
-                rw.AppendCommand(command);
-
-                if (stopped) { return; }
-                _ = ReplayWorkers.TryAdd(workerKey, rw);
-            }
 
             // Ensure the worker is running.
             // If new it needs starting for the first time.
@@ -386,7 +371,29 @@ namespace WorkloadTools.Consumer.Replay
 
         public override bool HasMoreEvents()
         {
-            return ReplayWorkers.Count(t => t.Value.HasCommands) > 0;
+            return buffer.Count > 0
+                   || ReplayWorkers.Count(t => t.Value.HasCommands) > 0 
+                   || ReplayWorkers.Count(t => t.Value.isExecuting) > 0;
+        }
+        public override void WaitForCompletion(TimeSpan timeout)
+        {
+            var start = DateTime.Now;
+
+            stopped = true;
+            while (buffer.Count > 0 && DateTime.Now - start < timeout)
+            {
+                Thread.Sleep(100);
+            }
+            while(ReplayWorkers.Any(w => w.Value.HasCommands || w.Value.isExecuting) && DateTime.Now - start < timeout)
+            {
+                Thread.Sleep(100);
+            }
+
+            foreach (var worker in ReplayWorkers.Values)
+            {
+                worker.WaitForTask(timeout - (DateTime.Now - start));
+            }
+            
         }
     }
 }

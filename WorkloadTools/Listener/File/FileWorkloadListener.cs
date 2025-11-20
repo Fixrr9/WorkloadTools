@@ -30,6 +30,9 @@ namespace WorkloadTools.Listener.File
         private MessageWorkloadEvent totalEventsMessage = null;
         private bool totalEventsMessageSent = false;
 
+        private long retrievedEventsCount = 0;
+        private const long LOG_INTERVAL = 10000; // Log every 10,000 events
+
         public FileWorkloadListener() : base()
         {
             Filter = new FileEventFilter();
@@ -242,6 +245,13 @@ namespace WorkloadTools.Listener.File
                 throw;
             }
 
+            // Track and log retrieved events
+            retrievedEventsCount++;
+            if (retrievedEventsCount % LOG_INTERVAL == 0)
+            {
+                logger.Info($"Retrieved {retrievedEventsCount:N0} events so far...");
+            }
+
             return result;
         }
 
@@ -348,6 +358,12 @@ namespace WorkloadTools.Listener.File
                 reader.Close();
             }
             conn.Dispose();
+
+            // Log final count of retrieved events
+            if (retrievedEventsCount > 0)
+            {
+                logger.Info($"Total events retrieved: {retrievedEventsCount:N0} out of {totalEvents:N0} events in file");
+            }
         }
 
         protected override void ReadPerfCountersEvents()

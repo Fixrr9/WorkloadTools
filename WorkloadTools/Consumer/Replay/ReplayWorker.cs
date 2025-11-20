@@ -6,6 +6,7 @@ using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.ServiceModel.Configuration;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,7 @@ namespace WorkloadTools.Consumer.Replay
         // Unlike the other loggers this one is not static because we
         // need unique properties for each instance of ReplayWorker.
         private readonly Logger logger;
+        public bool isExecuting { get; set; }
         public bool DisplayWorkerStats { get; set; }
         public bool ConsumeResults { get; set; }
         public int QueryTimeoutSeconds { get; set; }
@@ -187,307 +189,316 @@ namespace WorkloadTools.Consumer.Replay
         [MethodImpl(MethodImplOptions.Synchronized)]
         public void ExecuteCommand(ReplayCommand command, int failRetryCount = 0, int timeoutRetryCount = 0)
         {
-            LastCommandTime = DateTime.Now;
-
-            var applicationName = "WorkloadTools-ReplayWorker";
-            if (MimicApplicationName)
-            {
-                applicationName = command.ApplicationName;
-                if (string.IsNullOrEmpty(applicationName))
-                {
-                    ConnectionInfo.ApplicationName = "WorkloadTools-ReplayWorker";
-                }
-            }
-
-            if (Conn == null)
-            {
-                try
-                {
-                    InitializeConnection(applicationName);
-                }
-                catch (SqlException se)
-                {
-                    logger.Error(se, "Unable to acquire the connection. Quitting the ReplayWorker");
-
-                    return;
-                }
-            }
-
-            if (Conn != null)
-            {
-                while (Conn.State == ConnectionState.Connecting)
-                {
-                    if (IsStopped)
-                    {
-                        return;
-                    }
-
-                    logger.Debug("Connection is in connecting state. Sleeping for 5ms");
-
-                    Thread.Sleep(5);
-                }
-            }
-
-            if (Conn == null || (Conn.State == ConnectionState.Closed) || (Conn.State == ConnectionState.Broken))
-            {
-                InitializeConnection(applicationName);
-            }
-
-            // Extract the handle from the prepared statement
-            var nst = transformer.Normalize(command.CommandText);
-
-            // If the command comes with a replay offset, evaluate it now.
-            // The offset in milliseconds is set in FileWorkloadListener.
-            // The other listeners do not set this value, as they
-            // already come with the original timing
-            if (command.ReplayOffset > 0 && !skipNextDelay)
-            {
-                if (RelativeDelays && lastCommandOffet > 0)
-                {
-                    var relativeDelay = command.ReplayOffset - lastCommandOffet;
-
-                    logger.Debug("Command start time is {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} which is an offset of {relativeDelay} from the last command for this session", command.StartTime, relativeDelay);
-
-                    PreciseDelay(relativeDelay);
-                }
-                else
-                {
-                    var delayMs = command.ReplayOffset - (DateTime.Now - StartTime).TotalMilliseconds;
-
-                    // Delay execution only if necessary
-                    if (delayMs > 0)
-                    {
-                        // We're not skipping this delay, so reset the counter.
-                        continiousSkippedDelays = 0;
-
-                        // Each command has a requested offset from the beginning
-                        // of the workload and this class does its best to respect it.
-                        // If the previous commands take longer in the target environment
-                        // the offset cannot be respected and the command will execute
-                        // without further waits, but there is no way to recover 
-                        // the delay that has built up to that point.
-                        logger.Debug("Command start time is {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} which is an offset of {ReplayOffset}ms from the start so waiting", command.StartTime, command.ReplayOffset);
-
-                        PreciseDelay(delayMs);
-                    }
-                    else if (delayMs < -10000)
-                    {
-                        // If we're more than 10s behind then 
-                        logger.Debug("Command start time is {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} which is an offset of {ReplayOffset}ms from the start but replay is behind so it should have executed {delayMs}ms ago", command.StartTime, command.ReplayOffset, delayMs);
-                        continiousSkippedDelays++;
-
-                        if (continiousSkippedDelays % SkippedDelayCountThreshold == 0)
-                        {
-                            // If we are consistently behind and the configuration has
-                            // requested SynchronizationMode we're actually doing a stress test.
-                            logger.Warn("The last {skippedDelays} Commands requested a delay but replay is > 10s behind so were processed immediately which may indicate that either this tool or the target system cannot keep up with the workload. You could try switching to relative delays with the RelativeDelays parameter", continiousSkippedDelays);
-                        }
-                    }
-                }
-            }
-
-            if (IsStopped)
-            {
-                return;
-            }
-
-            // Record the requested and actual command start time in case we're doing relative sleeps
-            lastCommandOffet = command.ReplayOffset;
-
-            if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_RESET_CONNECTION)
-            {
-                // If event is a sp_reset_connection, call a connection close and open to
-                // force connection to get back to connection pool and reset it so that
-                // it's clean for the next event
-                Conn.Close();
-                Conn.Open();
-
-                // Generally appliations that (correctly) close their connection
-                // regularly and rely on the SQL Client Connection Pool, they will do
-                // so after a command.
-                // This results in the opening of the next connection getting a connection
-                // from the pool and triggering SP_Reset_Connection.
-                // As such captured traces show that the gap between SP_Reset_Connection
-                // and the next command is a few ms only.
-                // Given we struggle to do super-accurate delays, and given the original
-                // application likely had 0 delay in this scenario, skip the delay for the
-                // next command.
-                skipNextDelay = true;
-
-                return;
-            }
-            else if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_RESET_CONNECTION_NONPOOLED)
-            {
-                // If event is a nonpooled sp_reset_connection, call a ClearPool(conn)
-                // to force a new connection.
-                ClearPool(Conn);
-
-                // Generally appliations that (correctly) close their connection
-                // regularly and rely on the SQL Client Connection Pool, they will do
-                // so after a command.
-                // This results in the opening of the next connection getting a connection
-                // from the pool and triggering SP_Reset_Connection.
-                // As such captured traces show that the gap between SP_Reset_Connection
-                // and the next command is a few ms only.
-                // Given we struggle to do super-accurate delays, and given the original
-                // application likely had 0 delay in this scenario, skip the delay for the
-                // next command.
-                skipNextDelay = true;
-
-                return;
-            }
-            else if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_PREPARE)
-            {
-                command.CommandText = nst.NormalizedText;
-            }
-            else if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_UNPREPARE || nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_EXECUTE)
-            {
-                // look up the statement to unprepare in the dictionary
-                if (preparedStatements.ContainsKey(nst.Handle))
-                {
-                    // the sp_execute statement has already been "normalized"
-                    // by replacing the original statement number with the § placeholder
-                    command.CommandText = nst.NormalizedText.ReplaceFirst("§", preparedStatements[nst.Handle].ToString());
-
-                    if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_UNPREPARE)
-                    {
-                        _ = preparedStatements.Remove(nst.Handle);
-                    }
-                }
-                else
-                {
-                    return; // statement not found: better return
-                }
-            }
-
-            // If we get here it isn't a connection reset event, so ensure the next command delays correctly.
-            skipNextDelay = false;
-
+            
+            isExecuting = true;
             try
             {
-                // Try to remap the database according to the database map
-                if (DatabaseMap.ContainsKey(command.Database))
+                LastCommandTime = DateTime.Now;
+
+                var applicationName = "WorkloadTools-ReplayWorker";
+                if (MimicApplicationName)
                 {
-                    command.Database = DatabaseMap[command.Database];
-                }
-
-                if (Conn.Database != command.Database)
-                {
-                    logger.Debug("Changing database to {databaseName}", command.Database);
-
-                    Conn.ChangeDatabase(command.Database);
-                }
-
-                using (var cmd = new SqlCommand(command.CommandText))
-                {
-                    cmd.Connection = Conn;
-                    cmd.CommandTimeout = QueryTimeoutSeconds;
-
-                    if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_PREPARE)
+                    applicationName = command.ApplicationName;
+                    if (string.IsNullOrEmpty(applicationName))
                     {
-                        if (cmd.CommandText == null)
+                        ConnectionInfo.ApplicationName = "WorkloadTools-ReplayWorker";
+                    }
+                }
+
+                if (Conn == null)
+                {
+                    try
+                    {
+                        InitializeConnection(applicationName);
+                    }
+                    catch (SqlException se)
+                    {
+                        logger.Error(se, "Unable to acquire the connection. Quitting the ReplayWorker");
+
+                        return;
+                    }
+                }
+
+                if (Conn != null)
+                {
+                    while (Conn.State == ConnectionState.Connecting)
+                    {
+                        if (IsStopped)
                         {
                             return;
                         }
 
-                        var handle = -1;
-                        try
+                        logger.Debug("Connection is in connecting state. Sleeping for 5ms");
+
+                        Thread.Sleep(5);
+                    }
+                }
+
+                if (Conn == null || (Conn.State == ConnectionState.Closed) || (Conn.State == ConnectionState.Broken))
+                {
+                    InitializeConnection(applicationName);
+                }
+
+                // Extract the handle from the prepared statement
+                var nst = transformer.Normalize(command.CommandText);
+
+                // If the command comes with a replay offset, evaluate it now.
+                // The offset in milliseconds is set in FileWorkloadListener.
+                // The other listeners do not set this value, as they
+                // already come with the original timing
+                if (command.ReplayOffset > 0 && !skipNextDelay)
+                {
+                    if (RelativeDelays && lastCommandOffet > 0)
+                    {
+                        var relativeDelay = command.ReplayOffset - lastCommandOffet;
+
+                        logger.Debug("Command start time is {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} which is an offset of {relativeDelay} from the last command for this session", command.StartTime, relativeDelay);
+
+                        PreciseDelay(relativeDelay);
+                    }
+                    else
+                    {
+                        var delayMs = command.ReplayOffset - (DateTime.Now - StartTime).TotalMilliseconds;
+
+                        // Delay execution only if necessary
+                        if (delayMs > 0)
                         {
-                            var res = cmd.ExecuteScalar();
-                            if (res != null)
+                            // We're not skipping this delay, so reset the counter.
+                            continiousSkippedDelays = 0;
+
+                            // Each command has a requested offset from the beginning
+                            // of the workload and this class does its best to respect it.
+                            // If the previous commands take longer in the target environment
+                            // the offset cannot be respected and the command will execute
+                            // without further waits, but there is no way to recover 
+                            // the delay that has built up to that point.
+                            logger.Debug("Command start time is {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} which is an offset of {ReplayOffset}ms from the start so waiting", command.StartTime, command.ReplayOffset);
+
+                            PreciseDelay(delayMs);
+                        }
+                        else if (delayMs < -10000)
+                        {
+                            // If we're more than 10s behind then 
+                            logger.Debug("Command start time is {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} which is an offset of {ReplayOffset}ms from the start but replay is behind so it should have executed {delayMs}ms ago", command.StartTime, command.ReplayOffset, delayMs);
+                            continiousSkippedDelays++;
+
+                            if (continiousSkippedDelays % SkippedDelayCountThreshold == 0)
                             {
-                                handle = (int)res;
-                                if (!preparedStatements.ContainsKey(nst.Handle))
-                                {
-                                    preparedStatements.Add(nst.Handle, handle);
-                                }
+                                // If we are consistently behind and the configuration has
+                                // requested SynchronizationMode we're actually doing a stress test.
+                                logger.Warn("The last {skippedDelays} Commands requested a delay but replay is > 10s behind so were processed immediately which may indicate that either this tool or the target system cannot keep up with the workload. You could try switching to relative delays with the RelativeDelays parameter", continiousSkippedDelays);
                             }
                         }
-                        catch (NullReferenceException)
-                        {
-                            throw;
-                        }
                     }
-                    else if (ConsumeResults)
+                }
+
+                if (IsStopped)
+                {
+                    return;
+                }
+
+                // Record the requested and actual command start time in case we're doing relative sleeps
+                lastCommandOffet = command.ReplayOffset;
+
+                if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_RESET_CONNECTION)
+                {
+                    // If event is a sp_reset_connection, call a connection close and open to
+                    // force connection to get back to connection pool and reset it so that
+                    // it's clean for the next event
+                    Conn.Close();
+                    Conn.Open();
+
+                    // Generally appliations that (correctly) close their connection
+                    // regularly and rely on the SQL Client Connection Pool, they will do
+                    // so after a command.
+                    // This results in the opening of the next connection getting a connection
+                    // from the pool and triggering SP_Reset_Connection.
+                    // As such captured traces show that the gap between SP_Reset_Connection
+                    // and the next command is a few ms only.
+                    // Given we struggle to do super-accurate delays, and given the original
+                    // application likely had 0 delay in this scenario, skip the delay for the
+                    // next command.
+                    skipNextDelay = true;
+
+                    return;
+                }
+                else if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_RESET_CONNECTION_NONPOOLED)
+                {
+                    // If event is a nonpooled sp_reset_connection, call a ClearPool(conn)
+                    // to force a new connection.
+                    ClearPool(Conn);
+
+                    // Generally appliations that (correctly) close their connection
+                    // regularly and rely on the SQL Client Connection Pool, they will do
+                    // so after a command.
+                    // This results in the opening of the next connection getting a connection
+                    // from the pool and triggering SP_Reset_Connection.
+                    // As such captured traces show that the gap between SP_Reset_Connection
+                    // and the next command is a few ms only.
+                    // Given we struggle to do super-accurate delays, and given the original
+                    // application likely had 0 delay in this scenario, skip the delay for the
+                    // next command.
+                    skipNextDelay = true;
+
+                    return;
+                }
+                else if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_PREPARE)
+                {
+                    command.CommandText = nst.NormalizedText;
+                }
+                else if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_UNPREPARE || nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_EXECUTE)
+                {
+                    // look up the statement to unprepare in the dictionary
+                    if (preparedStatements.ContainsKey(nst.Handle))
                     {
-                        using (var reader = cmd.ExecuteReader())
-                        using (var consumer = new ResultSetConsumer(reader))
+                        // the sp_execute statement has already been "normalized"
+                        // by replacing the original statement number with the § placeholder
+                        command.CommandText = nst.NormalizedText.ReplaceFirst("§", preparedStatements[nst.Handle].ToString());
+
+                        if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_UNPREPARE)
                         {
-                            consumer.Consume();
+                            _ = preparedStatements.Remove(nst.Handle);
                         }
                     }
                     else
                     {
-                        _ = cmd.ExecuteNonQuery();
+                        return; // statement not found: better return
                     }
                 }
 
-                logger.Trace("SUCCESS - \n{commandText}", command.CommandText);
-                if (commandCount > 0 && commandCount % WorkerStatsCommandCount == 0)
-                {
-                    var seconds = (DateTime.Now - previousCPSComputeTime).TotalSeconds;
-                    var cps = (commandCount - previousCommandCount) / ((seconds == 0) ? 1 : seconds);
-                    previousCPSComputeTime = DateTime.Now;
-                    previousCommandCount = commandCount;
+                // If we get here it isn't a connection reset event, so ensure the next command delays correctly.
+                skipNextDelay = false;
 
-                    if (DisplayWorkerStats)
+                try
+                {
+                    // Try to remap the database according to the database map
+                    if (DatabaseMap.ContainsKey(command.Database))
                     {
-                        commandsPerSecond.Add((int)cps);
-                        cps = commandsPerSecond.Average();
+                        command.Database = DatabaseMap[command.Database];
+                    }
 
-                        logger.Info("{commandCount} commands executed - {pendingCommands} commands pending - Last Event Sequence: {lastEventSequence} - {cps} commands per second", commandCount, Commands.Count, command.EventSequence, (int)cps);
+                    if (Conn.Database != command.Database)
+                    {
+                        logger.Debug("Changing database to {databaseName}", command.Database);
+
+                        Conn.ChangeDatabase(command.Database);
+                    }
+
+                    using (var cmd = new SqlCommand(command.CommandText))
+                    {
+                        cmd.Connection = Conn;
+                        cmd.CommandTimeout = QueryTimeoutSeconds;
+
+                        if (nst.CommandType == NormalizedSqlText.CommandTypeEnum.SP_PREPARE)
+                        {
+                            if (cmd.CommandText == null)
+                            {
+                                return;
+                            }
+
+                            var handle = -1;
+                            try
+                            {
+                                var res = cmd.ExecuteScalar();
+                                if (res != null)
+                                {
+                                    handle = (int)res;
+                                    if (!preparedStatements.ContainsKey(nst.Handle))
+                                    {
+                                        preparedStatements.Add(nst.Handle, handle);
+                                    }
+                                }
+                            }
+                            catch (NullReferenceException)
+                            {
+                                throw;
+                            }
+                        }
+                        else if (ConsumeResults)
+                        {
+                            using (var reader = cmd.ExecuteReader())
+                            using (var consumer = new ResultSetConsumer(reader))
+                            {
+                                consumer.Consume();
+                            }
+                        }
+                        else
+                        {
+                            _ = cmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    logger.Trace("SUCCESS - \n{commandText}", command.CommandText);
+                    if (commandCount > 0 && commandCount % WorkerStatsCommandCount == 0)
+                    {
+                        var seconds = (DateTime.Now - previousCPSComputeTime).TotalSeconds;
+                        var cps = (commandCount - previousCommandCount) / ((seconds == 0) ? 1 : seconds);
+                        previousCPSComputeTime = DateTime.Now;
+                        previousCommandCount = commandCount;
+
+                        if (DisplayWorkerStats)
+                        {
+                            commandsPerSecond.Add((int)cps);
+                            cps = commandsPerSecond.Average();
+
+                            logger.Info("{commandCount} commands executed - {pendingCommands} commands pending - Last Event Sequence: {lastEventSequence} - {cps} commands per second", commandCount, Commands.Count, command.EventSequence, (int)cps);
+                        }
+                    }
+
+                    // Update the LastCommandTime again in case the duration of a Consume() call exceeded LastCommandTime + InactiveWorkerTerminationTimeoutSeconds
+                    LastCommandTime = DateTime.Now;
+                }
+                catch (SqlException e)
+                {
+                    // handle timeouts
+                    if (e.Number == -2)
+                    {
+                        RaiseTimeoutEvent(command.CommandText);
+                    }
+                    else
+                    {
+                        RaiseErrorEvent(command, e.Message);
+                    }
+
+                    // If the workload is exepected to include lots of errors then logging at the default Error level can become really noisy!
+                    logger.Log(CommandErrorLogLevel, e, "Sequence[{eventSequence}] - Error: \n{commandText}", command.EventSequence, command.CommandText);
+
+                    if (StopOnError)
+                    {
+                        ClearPool(Conn);
+
+                        throw;
+                    }
+                    else
+                    {
+                        if (e.Number != -2 && failRetryCount < FailRetryCount)
+                        {
+                            logger.Warn("Retrying Sequence[{eventSequence}] - Retrying command (current fail retry: {failRetryCount})", command.EventSequence, failRetryCount);
+                            ExecuteCommand(command, ++failRetryCount, timeoutRetryCount);
+                        }
+                        if (e.Number == -2 && timeoutRetryCount < TimeoutRetryCount)
+                        {
+                            logger.Warn("Retrying Sequence[{eventSequence}] - Retrying command (current timeout retry: {timeoutRetryCount})", command.EventSequence, timeoutRetryCount);
+                            ExecuteCommand(command, failRetryCount, ++timeoutRetryCount);
+                        }
                     }
                 }
-
-                // Update the LastCommandTime again in case the duration of a Consume() call exceeded LastCommandTime + InactiveWorkerTerminationTimeoutSeconds
-                LastCommandTime = DateTime.Now;
-            }
-            catch (SqlException e)
-            {
-                // handle timeouts
-                if (e.Number == -2)
+                catch (Exception e)
                 {
-                    RaiseTimeoutEvent(command.CommandText);
-                }
-                else
-                {
-                    RaiseErrorEvent(command, e.Message);
-                }
+                    // If the workload is exepected to include lots of errors then logging at the default Error level can become really noisy!
+                    logger.Log(CommandErrorLogLevel, e, "Sequence[{eventSequence}] - Error: \n{commandText}", command.EventSequence, command.CommandText);
 
-                // If the workload is exepected to include lots of errors then logging at the default Error level can become really noisy!
-                logger.Log(CommandErrorLogLevel, e, "Sequence[{eventSequence}] - Error: \n{commandText}", command.EventSequence, command.CommandText);
-
-                if (StopOnError)
-                {
                     ClearPool(Conn);
 
-                    throw;
-                }
-                else
-                {
-                    if (e.Number != -2 && failRetryCount < FailRetryCount)
+                    if (StopOnError)
                     {
-                        logger.Warn("Retrying Sequence[{eventSequence}] - Retrying command (current fail retry: {failRetryCount})", command.EventSequence, failRetryCount);
-                        ExecuteCommand(command, ++failRetryCount, timeoutRetryCount);
-                    }
-                    if (e.Number == -2 && timeoutRetryCount < TimeoutRetryCount)
-                    {
-                        logger.Warn("Retrying Sequence[{eventSequence}] - Retrying command (current timeout retry: {timeoutRetryCount})", command.EventSequence, timeoutRetryCount);
-                        ExecuteCommand(command, failRetryCount, ++timeoutRetryCount);
+                        throw;
                     }
                 }
             }
-            catch (Exception e)
+            finally
             {
-                // If the workload is exepected to include lots of errors then logging at the default Error level can become really noisy!
-                logger.Log(CommandErrorLogLevel, e, "Sequence[{eventSequence}] - Error: \n{commandText}", command.EventSequence, command.CommandText);
-
-                ClearPool(Conn);
-
-                if (StopOnError)
-                {
-                    throw;
-                }
+                isExecuting = false;
             }
         }
 
@@ -644,6 +655,13 @@ MESSAGE:
         {
             Dispose(true);
             GC.SuppressFinalize(this);
+        }
+        public void WaitForTask(TimeSpan timeout)
+        {
+            if (runner != null && !runner.IsCompleted)
+            {
+                runner.Wait(timeout);
+            }
         }
 
         protected void Dispose(bool disposing)

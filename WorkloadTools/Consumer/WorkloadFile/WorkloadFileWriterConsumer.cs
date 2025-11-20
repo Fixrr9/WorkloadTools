@@ -1,6 +1,4 @@
-﻿using NLog;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
@@ -8,6 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
+
+using NLog;
 
 namespace WorkloadTools.Consumer.WorkloadFile
 {
@@ -647,6 +648,17 @@ SELECT 'FormatVersion','{Assembly.GetEntryAssembly().GetName().Version}'
         public override bool HasMoreEvents()
         {
             return cache.Count > 0;
+        }
+        public override void WaitForCompletion(TimeSpan timeout)
+        {
+            var start = DateTime.Now;
+
+            stopped = true;
+            while (buffer.Count > 0 && DateTime.Now - start < timeout)
+            {
+                Thread.Sleep(100);
+            }
+            
         }
     }
 }

@@ -10,7 +10,7 @@ namespace WorkloadTools.Consumer
         public abstract void Consume(WorkloadEvent evt);
 
         public abstract bool HasMoreEvents();
-
+        public abstract void WaitForCompletion(TimeSpan timeout);
         public void Dispose()
         {
             Dispose(true);

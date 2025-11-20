@@ -109,7 +109,7 @@ namespace SqlWorkload
                 config.Controller.Stop();
             };
 
-            var t = processController(config.Controller);
+            var t = processController(config.Controller);  
             t.Wait();
             logger.Info("Controller stopped.");
             config.Controller.Dispose();

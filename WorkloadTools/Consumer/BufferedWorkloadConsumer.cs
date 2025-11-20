@@ -15,32 +15,22 @@ namespace WorkloadTools.Consumer
         private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
         protected bool stopped = false;
-        protected ConcurrentQueue<WorkloadEvent> Buffer { get; set; } = new ConcurrentQueue<WorkloadEvent>();
+        public BlockingCollection<WorkloadEvent> buffer = new BlockingCollection<WorkloadEvent>(new ConcurrentQueue<WorkloadEvent>(), 100000);
         protected Task BufferReader { get; set; }
 
-        private SpinWait spin = new SpinWait();
+        // private SpinWait spin = new SpinWait();
         
         public int BufferSize { get; set; } = 100000;
 
         public override sealed void Consume(WorkloadEvent evt)
         {
-            if (evt == null)
+            if (evt == null) { return; }
+            if (!buffer.TryAdd(evt, TimeSpan.FromSeconds(5)))
             {
-                return;
+                logger.Error("Failed to add event to buffer within timeout.");
             }
 
-            // Ensure that the buffer does not get too big
-            while (Buffer.Count >= BufferSize)
-            {
-                logger.Trace("Buffer is full so spinning");
-                spin.SpinOnce();
-            }
-
-            // If the buffer has room, enqueue the event
-            logger.Trace("Adding event {eventType} with start time {startTime:yyyy-MM-ddTHH\\:mm\\:ss.fffffff} to buffer", evt.Type, evt.StartTime);
-            Buffer.Enqueue(evt);
-
-            if(BufferReader == null)
+            if (BufferReader == null)
             {
                 BufferReader = Task.Factory.StartNew(() => ProcessBuffer());
             }
@@ -48,24 +38,9 @@ namespace WorkloadTools.Consumer
 
         protected void ProcessBuffer()
         {
-            while (!stopped)
+            foreach (var evt in buffer.GetConsumingEnumerable())
             {
-                WorkloadEvent evt;
-                while (!Buffer.TryDequeue(out evt))
-                {
-                    if (stopped)
-                    {
-                        return;
-                    }
-
-                    spin.SpinOnce();
-                }
-
-                if (evt == null)
-                {
-                    continue;
-                }
-
+                if (stopped) { break; }
                 ConsumeBuffered(evt);
             }
         }

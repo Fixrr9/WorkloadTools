@@ -59,13 +59,13 @@ namespace WorkloadTools
                         {
                             endTime = startTime.AddMinutes(Listener.TimeoutMinutes);
                         }
-
+                        
                         var evt = Listener.Read();
                         if (evt == null)
                         {
                             continue;
                         }
-
+                        
                         _ = Parallel.ForEach(Consumers, (cons) =>
                         {
                             cons.Consume(evt);
@@ -84,6 +84,12 @@ namespace WorkloadTools
                 // give max 1 minute grace time
                 if (!forceStopped)
                 {
+                    logger.Info("Waiting for all worker tasks to complete...");
+                    foreach (var consumer in Consumers)
+                    {
+                        consumer.WaitForCompletion(TimeSpan.FromMinutes(1));
+                    }
+
                     var beginWait = DateTime.Now;
                     while (Consumers.Where(c => c is BufferedWorkloadConsumer).Any(c => c.HasMoreEvents()) && beginWait > DateTime.Now.AddMinutes(-1))
                     {
