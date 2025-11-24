@@ -1,0 +1,206 @@
+Overview 
+
+Goals 
+
+The intent of this document is not to codify current coding practices at Codestone at the time of writing, instead it has the following aims: 
+
+To maximise readability and maintainability of code by prescribing a unified style 
+
+To reduce the time required for a developer to get up to speed on an existing project by providing a common coding style across all projects 
+
+To prevent errors and bugs (especially hard-to-find ones) by minimizing complexity and applying proven design principles. 
+
+To improve performance and reliability with a list of best practices 
+
+Whereas this document draws mostly from in-house programming experience, it is based upon the Encado standards and also includes ideas from Microsoft’s C# coding style documents. 
+
+Scope 
+
+This document is aimed mainly at programming in C# and the later versions of .NET. However these rules should also be applied to coding in VB and early version of .NET (1 and 1.1) where ever possible. 
+
+Existing Code 
+
+The rules in this document should be applied to all new code being developed. If you are modifying an existing codebase following the coding standards as much as it is sensible to do so. Refactor existing code to conform with the standards as you work on it and when it is sensible to do so.  
+
+Setting Up a Project for Coding Standards 
+
+Resharper 
+
+Resharper must be used for all new projects, Resharper should also be used for existing projects as well where it is possible and sensible to do so. Note, Resharper does not support some versions of Visual Studio and as such cannot be used on projects that require these version of Visual Studio. 
+
+A Resharper settings file exists which is configured to help enforce these coding standards. This file should be imported into every solution. To import this settings file, follow these steps  
+
+If your environment cannot access OLDGGEN2, download CodingStandards.DotSettings from Teams (here) 
+
+ReSharper -> Manage Options 
+
+Right-click "Solution 'Your Solution' team-shared" 
+
+Select Add Layer -> Open Settings File 
+
+Select the file you downloaded above or select \\oldgen2\cg\development\coding standards\CodingStandards.DotSettings 
+
+Code Analysis Rules 
+
+The Codestone Code Analysis Rules should be enabled in your project and for non-test projects these should be set to run on build.  
+
+To setup the code analysis rules: 
+
+If your environment cannot access OLDGGEN2, download CodingStandards.ruleset from Teams (here) 
+
+Right click on the project in visual studio and click “Properties” 
+
+Select “Code Analysis”, usually it is the last section on the left. 
+
+If you have previously installed the code analysis rules they should be available in the drop down. If not click open and select the file you downloaded above or \\oldgen2\cg\development\coding standards\CodingStandards.ruleset 
+
+If this is not a test project ensure “Enable Code Analysis on Build” is checked. 
+
+Syntax 
+
+<Something> - Text in <> indicates the type of information that should be used at that point in the code e.g. When developing for Graff; <Customer Name> should be replaced by Graff. 
+
+Changes to this Document 
+
+Unless otherwise noted, these guidelines are not optional, nor are they up to interpretation. 
+
+If a guideline is not sufficiently clear, recommend a clearer formulation. 
+
+If you don’t like a guideline, try to get it changed or removed, but don’t just ignore it. Your code reviewer might not be aware that you are special and not subject to the rules. 
+
+Structure 
+
+Projects and Solutions 
+
+Do use folders to separate out your code files into meaningful groups. Do not use a flat file structure for any but the simplest of projects.  
+
+File Contents 
+
+Only one namespace per file. 
+
+Do not have more than one public type in a source file, unless they differ only in the number of generic parameters, or one is nested in the other. (Use best judgement) 
+
+Do not have more than one top level class or interface in a source file unless adhering to the previous point. 
+
+Name the source file for the public class or interface it contains. If the file does not contain a class or interface, it should have a name that describes its contents. 
+
+using statements should go at the very top of the file, just before the namespace declaration. 
+
+The generated parts of partial classes should go in a separate file (if there are multiple generated parts each part should go in its own file) using the same root name as the user-editable file, but with an additional parameter to indicate it contents, purpose, or origin. E.g. 
+
+ContactForm.cs  
+
+ContactForm.Designer.cs 
+
+Large classes should be broken down into smaller classes, or if that is not possible then split over several files using partial classes. 
+
+Assemblies 
+
+Fill out company, copyright, and version for all projects  
+
+Do not use the 1.0.* notation for versioning – specific version number standards 
+
+Use a separate assembly for external code whenever possible; avoid mixing third-party code into the same assembly as project or framework code. 
+
+Do not introduce cyclic dependencies.  
+
+Test Assemblies should have the same structure as the assembly it is testing. 
+
+Namespaces 
+
+ The namespace path of a class should match the folder path within the project structure with the project’s namespace forming the root. E.g., a file in the Controllers sub-folder of a project should contain the namespace <Project Namespace>.Controllers 
+
+Usage 
+
+Do not declare a type in the global namespace. 
+
+Avoid fully-qualified type names, use the using statement instead. 
+
+If the IDE inserts a fully-qualified type name in your code, you should fix it. If the unadorned name conflicts with other already-included namespaces, make an alias for the class with a using clause. 
+
+Do not put a using statement inside a namespace (unless you must do so to resolve a conflict). 
+
+Standard Prefixes 
+
+Namespaces for customer products should start Codestone.<Customer Name>.<Product Name> e.g. 
+
+namespace Codestone.Graff.Pos 
+
+Namespaces for non-customer products should start Codestone.<Product Name> e.g. 
+
+namespace Codestone.CodeScan 
+
+Formatting 
+
+Indenting and Spacing 
+
+Use spaces for indenting not tabs. 
+
+An indent in C# is four spaces. 
+
+Use a single space after a comma. 
+
+There is no space after the open parentheses and no space before the closing parentheses 
+
+Infix operators should have a single space before and after. 
+
+Braces 
+
+A consistent bracing style should be used on all files in a solution 
+
+Braces should always be used on single statement conditionals and loops 
+
+I.E if (x) return; should always be written as  
+if (x) { 
+   return; 
+} 
+
+Parentheses 
+
+The conditional part of an if statement should always be in parentheses 
+
+Empty Lines 
+
+Use blank lines to separate sections of your code to improve readability. 
+
+Always use a blank line between individual methods, properties, nested type declarations and #region/#endregion tags. 
+
+Always use a blank line to separate field declarations from other code and constant fields from other fields. 
+
+Line Breaking 
+
+Lines should be no more than 140 characters long 
+
+Naming 
+
+Basic Composition 
+
+Valid Characters 
+
+Do not use underscores (except where specified in Identifier Naming Conventions below or included in a member generated by the IDE), hyphens or other non-alphanumeric characters. 
+
+Use numbers only as a suffix for local variables and method parameters.  
+
+Do not use numbers to differentiate between items of differing types.  
+
+General Rules 
+
+Names should be in British English. 
+
+Names should conform to English grammatical conventions (e.g. use ImportableDatabase instead of DatabaseImportable) 
+
+Use meaningful names. 
+
+Do not declare elements whose names only differ by case, except for parameters intended only to set a variable or property. 
+
+Do not repeat the name of a class or enumeration in its members. 
+
+Do not encode the type of an identifier into its name (except for variables containing standard windows forms controls see UI Controls. 
+
+Collision and Matching 
+
+Do not name an element with the same identifier as its containing element (e.g., do not create a class named Expressions within a namespace called Expressions) 
+
+ 
+
+ 

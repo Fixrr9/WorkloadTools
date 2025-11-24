@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
@@ -158,7 +158,7 @@ namespace WorkloadTools.Listener.File
                 {
                     if (!reader.Read())
                     {
-                        stopped = true;
+                        Stopped = true;
                         return null;
                     }
 
@@ -229,7 +229,7 @@ namespace WorkloadTools.Listener.File
             }
             catch (Exception e)
             {
-                if (stopped)
+                if (Stopped)
                 {
                     return null;
                 }

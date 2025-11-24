@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,8 +17,10 @@ namespace WorkloadTools
 
         public MMFEventQueue()
         {
-            pile = new MMFPile("workloadevents");
-            pile.DataDirectoryRoot = System.IO.Path.GetTempPath();
+            pile = new MMFPile("workloadevents")
+            {
+                DataDirectoryRoot = System.IO.Path.GetTempPath()
+            };            
             pointers = new ConcurrentQueue<PilePointer>();
             pile.Start();
         }

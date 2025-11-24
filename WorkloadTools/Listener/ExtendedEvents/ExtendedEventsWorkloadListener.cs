@@ -1,4 +1,4 @@
-﻿using Microsoft.SqlServer.XEvent.Linq;
+using Microsoft.SqlServer.XEvent.Linq;
 using NLog;
 using System;
 using System.Collections.Generic;
@@ -17,13 +17,13 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
         private SpinWait spin = new SpinWait();
 
-        protected XEventDataReader reader;
+        protected XEventDataReader Reader;
 
         public string SessionName { get; set; } = "sqlworkload";
 
         public bool ReuseExistingSession { get; set; } = false;
 
-        public enum ServerType
+        public enum ServerTypeEnum
         {
             FullInstance,
             AzureSqlDatabase,
@@ -31,7 +31,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
             LocalDB
         }
 
-        private ServerType serverType { get; set; }
+        private ServerTypeEnum ServerType { get; set; }
 
         // Path to the file target
         // Mandatory on SqlAzure
@@ -59,7 +59,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
                 LoadServerType(conn);
 
-                if (serverType == ServerType.AzureSqlDatabase)
+                if (ServerType == ServerTypeEnum.AzureSqlDatabase)
                 {
                     if (ConnectionInfo.DatabaseName == null)
                     {
@@ -110,8 +110,8 @@ namespace WorkloadTools.Listener.ExtendedEvents
                         filters = "WHERE " + filters;
                     }
 
-                    var sessionType = serverType == ServerType.AzureSqlDatabase ? "DATABASE" : "SERVER";
-                    var principalName = serverType == ServerType.AzureSqlDatabase ? "username" : "server_principal_name";
+                    var sessionType = ServerType == ServerTypeEnum.AzureSqlDatabase ? "DATABASE" : "SERVER";
+                    var principalName = ServerType == ServerTypeEnum.AzureSqlDatabase ? "username" : "server_principal_name";
 
                     sessionSql = string.Format(sessionSql, filters, sessionType, principalName);
 
@@ -137,7 +137,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                         ADD TARGET package0.event_file(SET filename=N'{1}',max_file_size=(100))
                     ";
 
-                        sql = string.Format(sql, serverType == ServerType.FullInstance ? "SERVER" : "DATABASE", FileTargetPath, SessionName);
+                        sql = string.Format(sql, ServerType == ServerTypeEnum.FullInstance ? "SERVER" : "DATABASE", FileTargetPath, SessionName);
 
                         using (var cmd = conn.CreateCommand())
                         {
@@ -148,7 +148,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                 }
 
                 // Mark the transaction
-                SetTransactionMark(serverType != ServerType.AzureSqlDatabase);
+                SetTransactionMark(ServerType != ServerTypeEnum.AzureSqlDatabase);
 
                 _ = Task.Factory.StartNew(() => ReadEvents());
 
@@ -170,7 +170,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                 WorkloadEvent result = null;
                 while (!Events.TryDequeue(out result))
                 {
-                    if (stopped)
+                    if (Stopped)
                     {
                         return null;
                     }
@@ -182,7 +182,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
             }
             catch (Exception)
             {
-                if (stopped)
+                if (Stopped)
                 {
                     return null;
                 }
@@ -195,16 +195,15 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
         protected override void Dispose(bool disposing)
         {
-            stopped = true;
+            Stopped = true;
             try
             {
                 logger.Info($"Disposing ExtendedEventsWorkloadListener.");
                 logger.Debug($"[{eventCount}] events read.");
                 logger.Debug($"Events in the queue? [{Events.HasMoreElements()}]");
-                if(reader != null)
-                {
-                    reader.Stop();
-                }
+
+                Reader?.Stop();
+                
                 if (!ReuseExistingSession)
                 {
                     using (var conn = new SqlConnection())
@@ -231,42 +230,42 @@ namespace WorkloadTools.Listener.ExtendedEvents
                 IF SERVERPROPERTY('Edition') = 'SQL Azure'
                     AND SERVERPROPERTY('EngineEdition') = 5
                 BEGIN
-	                SELECT @condition = 1
-	                WHERE EXISTS (
-		                SELECT *
-		                FROM sys.database_event_sessions
-		                WHERE name = '{1}'
-	                )
+                    SELECT @condition = 1
+                    WHERE EXISTS (
+                        SELECT *
+                        FROM sys.database_event_sessions
+                        WHERE name = '{1}'
+                    )
                 END
                 ELSE
-                BEGIN 
-	                SELECT @condition = 1
-	                WHERE EXISTS (
-		                SELECT *
-		                FROM sys.server_event_sessions
-		                WHERE name = '{1}'
-	                )
+                BEGIN
+                    SELECT @condition = 1
+                    WHERE EXISTS (
+                        SELECT *
+                        FROM sys.server_event_sessions
+                        WHERE name = '{1}'
+                    )
                 END
 
                 IF @condition = 1
                 BEGIN
-	                BEGIN TRY
-		                ALTER EVENT SESSION [{1}] ON {0} STATE = STOP;
-	                END TRY
-	                BEGIN CATCH
-		                -- whoops...
-		                PRINT ERROR_MESSAGE()
-	                END CATCH
-	                BEGIN TRY
-		                DROP EVENT SESSION [{1}] ON {0};
-	                END TRY
-	                BEGIN CATCH
-		                -- whoops...
-		                PRINT ERROR_MESSAGE()
-	                END CATCH
+                    BEGIN TRY
+                        ALTER EVENT SESSION [{1}] ON {0} STATE = STOP;
+                    END TRY
+                    BEGIN CATCH
+                        -- whoops...
+                        PRINT ERROR_MESSAGE()
+                    END CATCH
+                    BEGIN TRY
+                        DROP EVENT SESSION [{1}] ON {0};
+                    END TRY
+                    BEGIN CATCH
+                        -- whoops...
+                        PRINT ERROR_MESSAGE()
+                    END CATCH
                 END
             ";
-            sql = string.Format(sql, serverType == ServerType.AzureSqlDatabase ? "DATABASE" : "SERVER", SessionName);
+            sql = string.Format(sql, ServerType == ServerTypeEnum.AzureSqlDatabase ? "DATABASE" : "SERVER", SessionName);
             using (var cmd = conn.CreateCommand())
             {
                 cmd.CommandText = sql;
@@ -281,19 +280,19 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
                 if (FileTargetPath == null)
                 {
-                    reader = new StreamXEventDataReader(ConnectionInfo.ConnectionString(), SessionName, Events);
+                    Reader = new StreamXEventDataReader(ConnectionInfo.ConnectionString(), SessionName, Events);
                 }
                 else
                 {
-                    reader = new FileTargetXEventDataReader(ConnectionInfo.ConnectionString(), SessionName, Events, serverType);
+                    Reader = new FileTargetXEventDataReader(ConnectionInfo.ConnectionString(), SessionName, Events, ServerType);
                 }
 
-                reader.ReadEvents();
+                Reader.ReadEvents();
 
             }
             catch (Exception ex)
             {
-                if (!stopped)
+                if (!Stopped)
                 {
                     logger.Error(ex.Message);
                     logger.Error(ex.StackTrace);
@@ -322,15 +321,15 @@ namespace WorkloadTools.Listener.ExtendedEvents
                 var engineEdition = (int)cmd.ExecuteScalar();
                 if (edition == "SQL Azure")
                 {
-                    serverType = ServerType.AzureSqlDatabase;
+                    ServerType = ServerTypeEnum.AzureSqlDatabase;
                     if (engineEdition == 8)
                     {
-                        serverType = ServerType.AzureSqlManagedInstance;
+                        ServerType = ServerTypeEnum.AzureSqlManagedInstance;
                     }
                 }
                 else
                 {
-                    serverType = ServerType.FullInstance;
+                    ServerType = ServerTypeEnum.FullInstance;
                 }
             }
         }

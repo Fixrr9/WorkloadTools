@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,7 +12,7 @@ namespace WorkloadTools.Consumer.Analysis
 {
     public class AnalysisConsumer : BufferedWorkloadConsumer
     {
-        private WorkloadAnalyzer analyzer;
+        private WorkloadAnalyzer _analyzer;
 
         private int _uploadIntervalSeconds;
 
@@ -38,52 +38,52 @@ namespace WorkloadTools.Consumer.Analysis
 
         public int MaximumWriteRetries { get; set; } = 5;
 
-		public bool SqlNormalizerTruncateTo4000 { get; set; }
-		public bool SqlNormalizerTruncateTo1024 { get; set; }
+        public bool SqlNormalizerTruncateTo4000 { get; set; }
+        public bool SqlNormalizerTruncateTo1024 { get; set; }
 
         public bool WriteDetail { get; set; } = true;
         public bool WriteSummary { get; set; } = true;
 
         public override void ConsumeBuffered(WorkloadEvent evt)
         {
-            if(analyzer == null)
+            if(_analyzer == null)
             {
-                analyzer = new WorkloadAnalyzer()
+                _analyzer = new WorkloadAnalyzer()
                 {
                     Interval = UploadIntervalSeconds / 60,
                     ConnectionInfo = ConnectionInfo,
-					MaximumWriteRetries = MaximumWriteRetries,
-					TruncateTo1024 = SqlNormalizerTruncateTo1024,
-					TruncateTo4000 = SqlNormalizerTruncateTo4000,
+                    MaximumWriteRetries = MaximumWriteRetries,
+                    TruncateTo1024 = SqlNormalizerTruncateTo1024,
+                    TruncateTo4000 = SqlNormalizerTruncateTo4000,
                     WriteDetail = WriteDetail
-				};
+                };
             }
 
-            analyzer.Add(evt);
+            _analyzer.Add(evt);
         }
 
         public override bool HasMoreEvents()
         {
-            return analyzer.HasEventsQueued || buffer.Count > 0;
+            return _analyzer.HasEventsQueued || Buffer.Count > 0;
 
             
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (analyzer != null)
+            if (_analyzer != null)
             {
-                analyzer.Stop();
-                analyzer.Dispose();
+                _analyzer.Stop();
+                _analyzer.Dispose();
             }
         }
 
         public override void WaitForCompletion(TimeSpan timeout)
         {
-            var start = DateTime.Now;
+            DateTime start = DateTime.Now;
 
-            stopped = true;
-            while (buffer.Count > 0 && DateTime.Now - start < timeout)
+            Stopped = true;
+            while (Buffer.Count > 0 && DateTime.Now - start < timeout)
             {
                 Thread.Sleep(100);
             }

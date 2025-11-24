@@ -13,7 +13,6 @@ namespace WorkloadTools.Consumer.Replay
     {
         private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
-        private SpinWait spin = new SpinWait();
         public int ThreadLimit = 256;//32
         public int InactiveWorkerTerminationTimeoutSeconds = 300;
         private readonly Semaphore WorkLimiter;
@@ -119,14 +118,14 @@ namespace WorkloadTools.Consumer.Replay
                 if ((double)eventCount % ((double)totalEventCount / 1000) == 0)
                 {
                     var percentInfo = (double)eventCount / (double)totalEventCount;
-                    logger.Info("{eventCount} ({percentInfo:P}) events replayed - {bufferedEventCount} events buffered", eventCount, percentInfo, buffer.Count);
+                    logger.Info("{eventCount} ({percentInfo:P}) events replayed - {bufferedEventCount} events buffered", eventCount, percentInfo, Buffer.Count);
                 }
             }
             else
             {
                 if (eventCount % WorkerStatsCommandCount == 0)
                 {
-                    logger.Info("{eventCount} events replayed - {bufferedEventCount} events buffered", eventCount, buffer.Count);
+                    logger.Info("{eventCount} events replayed - {bufferedEventCount} events buffered", eventCount, Buffer.Count);
                 }
             }
 
@@ -139,7 +138,7 @@ namespace WorkloadTools.Consumer.Replay
 
             var evt = (ExecutionWorkloadEvent)evnt;
 
-            if (stopped) { return; }
+            if (Stopped) { return; }
 
             var command = new ReplayCommand()
             {
@@ -178,7 +177,6 @@ namespace WorkloadTools.Consumer.Replay
             });
             rw.AppendCommand(command);
 
-
             // Ensure the worker is running.
             // If new it needs starting for the first time.
             // If existing it may have stopped if the command queue became empty.
@@ -210,7 +208,7 @@ namespace WorkloadTools.Consumer.Replay
         protected override void Dispose(bool disposing)
         {
             logger.Info("Disposing ReplayConsumer");
-            stopped = true;
+            Stopped = true;
 
             foreach (var r in ReplayWorkers.Values)
             {
@@ -223,7 +221,7 @@ namespace WorkloadTools.Consumer.Replay
         // that have not executed a command in the last 5 minutes
         private void RunSweeper()
         {
-            while (!stopped)
+            while (!Stopped)
             {
                 logger.Debug("Looking for workers that have been idle for {InactiveWorkerTerminationTimeoutSeconds}s", InactiveWorkerTerminationTimeoutSeconds);
 
@@ -231,8 +229,8 @@ namespace WorkloadTools.Consumer.Replay
                 {
                     // Use .ToList() to materialise the list so that ReplayWorkers.TryRemove does not cause an exception that the list has changed during the iteration
                     foreach (var wrk in ReplayWorkers.Values.Where(x => x.LastCommandTime > DateTime.MinValue && x.LastCommandTime < DateTime.Now.AddSeconds(-InactiveWorkerTerminationTimeoutSeconds) && !x.HasCommands).ToList())
-                    {
-                        if(stopped) { return; }
+                    {   
+                        if(Stopped) { return; }
 
                         logger.Debug("Removing worker {Worker} which has not executed a command since {lastCommand}", wrk.Name, wrk.LastCommandTime);
 
@@ -263,7 +261,7 @@ namespace WorkloadTools.Consumer.Replay
         {
             try
             {
-                if (stopped)
+                if (Stopped)
                 {
                     return;
                 }
@@ -348,7 +346,7 @@ namespace WorkloadTools.Consumer.Replay
                     }
                     else if (ThreadingMode == ThreadingModeEnum.WorkerTask)
                     {
-                        if (!wrk.IsRunning && !stopped)
+                        if (!wrk.IsRunning && !Stopped)
                         {
                             wrk.Start();
                         }
@@ -371,20 +369,20 @@ namespace WorkloadTools.Consumer.Replay
 
         public override bool HasMoreEvents()
         {
-            return buffer.Count > 0
+            return Buffer.Count > 0
                    || ReplayWorkers.Count(t => t.Value.HasCommands) > 0 
-                   || ReplayWorkers.Count(t => t.Value.isExecuting) > 0;
+                   || ReplayWorkers.Count(t => t.Value.IsExecuting) > 0;
         }
         public override void WaitForCompletion(TimeSpan timeout)
         {
             var start = DateTime.Now;
 
-            stopped = true;
-            while (buffer.Count > 0 && DateTime.Now - start < timeout)
+            Stopped = true;
+            while (Buffer.Count > 0 && DateTime.Now - start < timeout)
             {
                 Thread.Sleep(100);
             }
-            while(ReplayWorkers.Any(w => w.Value.HasCommands || w.Value.isExecuting) && DateTime.Now - start < timeout)
+            while(ReplayWorkers.Any(w => w.Value.HasCommands || w.Value.IsExecuting) && DateTime.Now - start < timeout)
             {
                 Thread.Sleep(100);
             }

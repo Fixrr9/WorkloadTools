@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
@@ -21,7 +21,6 @@ namespace WorkloadTools.Listener.Trace
         private int TraceRowsSleepThreshold { get; set; } = 5000;
         private int TraceIntervalSeconds { get; set; } = 10;
 
-        private bool stopped = false;
         private int traceId = -1;
 
         private readonly TraceUtils utils;
@@ -39,7 +38,7 @@ namespace WorkloadTools.Listener.Trace
             {
                 var retryCount = 0;
 
-                while (!stopped)
+                while (!IsStopped)
                 {
                     using (var conn = new SqlConnection())
                     {
@@ -224,23 +223,23 @@ namespace WorkloadTools.Listener.Trace
         {
             var sqlReadTrace = @"
                 SELECT EventSequence
-	                ,Error
-	                ,TextData
-	                ,BinaryData
-	                ,DatabaseID
-	                ,HostName
-	                ,ApplicationName
-	                ,LoginName
-	                ,SPID
-	                ,Duration
-	                ,StartTime
-	                ,EndTime
-	                ,Reads
-	                ,Writes
-	                ,CPU
-	                ,EventClass
-	                ,DatabaseName
-	                ,EventSubClass
+                    ,Error
+                    ,TextData
+                    ,BinaryData
+                    ,DatabaseID
+                    ,HostName
+                    ,ApplicationName
+                    ,LoginName
+                    ,SPID
+                    ,Duration
+                    ,StartTime
+                    ,EndTime
+                    ,Reads
+                    ,Writes
+                    ,CPU
+                    ,EventClass
+                    ,DatabaseName
+                    ,EventSubClass
                 FROM fn_trace_gettable(@path, @number_files)
             ";
 
@@ -392,13 +391,9 @@ namespace WorkloadTools.Listener.Trace
 
         public override void Stop()
         {
-            stopped = true;
+            IsStopped = true;
         }
 
-        public bool IsStopped
-        {
-            get { return stopped; }
-        }
-
+        public bool IsStopped { get; private set; } = false;
     }
 }

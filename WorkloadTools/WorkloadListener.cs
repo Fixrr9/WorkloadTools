@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -98,7 +98,7 @@ namespace WorkloadTools
 
         public EventQueueType QueueType = EventQueueType.BinarySerialized;
 
-        protected bool stopped;
+        protected bool Stopped;
 
         public WorkloadListener()
         {
@@ -112,15 +112,15 @@ namespace WorkloadTools
                 case EventQueueType.Sqlite:
                     throw new NotImplementedException();
                 case EventQueueType.BinarySerialized:
-                    Events = new BinarySerializedBufferedEventQueue();
-                    Events.BufferSize = 10000;
+                    Events = new BinarySerializedBufferedEventQueue{BufferSize = 10000};
                     break;
             }
             
         }
 
-        public void Dispose() {
-            stopped = true;
+        public void Dispose()
+        {
+            Stopped = true;
             Events.Dispose();
             Dispose(true);
             GC.SuppressFinalize(this);
@@ -132,19 +132,20 @@ namespace WorkloadTools
 
         public abstract void Initialize();
 
-        public bool IsRunning { get { return !stopped; } }
+        public bool IsRunning => !Stopped;
 
         // Collects some performance counters
         protected virtual void ReadPerfCountersEvents()
         {
             try
             {
-                while (!stopped)
+                while (!Stopped)
                 {
-                    var evt = new CounterWorkloadEvent();
-                    evt.Type = WorkloadEvent.EventType.PerformanceCounter;
-                    evt.StartTime = DateTime.Now;
-
+                    var evt = new CounterWorkloadEvent
+                    {
+                        Type = WorkloadEvent.EventType.PerformanceCounter,
+                        StartTime = DateTime.Now
+                    };                  
                     evt.Counters.Add(
                         CounterWorkloadEvent.CounterNameEnum.AVG_CPU_USAGE,
                         GetLastCPUUsage()
@@ -175,7 +176,7 @@ namespace WorkloadTools
                 conn.ConnectionString = ConnectionInfo.ConnectionString();
                 conn.Open();
                 // Calculate CPU usage during the last minute interval
-                var sql = @"
+                String sql = @"
                     IF SERVERPROPERTY('Edition') = 'SQL Azure'
                         AND SERVERPROPERTY('EngineEdition') = 5
                     BEGIN
@@ -194,37 +195,37 @@ namespace WorkloadTools
                         AND SERVERPROPERTY('EngineEdition') = 8 -- Managed Instance
                     BEGIN
                         WITH PerfCounters AS (
-	                        SELECT DISTINCT
-	                             RTrim(spi.[object_name]) AS [object_name]
-	                            ,RTrim(spi.[counter_name]) AS [counter_name]
-	                            ,RTRIM(spi.instance_name) AS [instance_name]
-	                            ,CAST(spi.[cntr_value] AS BIGINT) AS [cntr_value]
-	                            ,spi.[cntr_type]
-	                        FROM sys.dm_os_performance_counters AS spi 
-	                        LEFT JOIN sys.databases AS d
-		                        ON LEFT(spi.[instance_name], 36) -- some instance_name values have an additional identifier appended after the GUID
-		                        = d.[name]
-	                        WHERE
-		                        counter_name IN (
-			                         'CPU usage %'
-			                        ,'CPU usage % base'
-		                        ) 
+                            SELECT DISTINCT
+                                 RTrim(spi.[object_name]) AS [object_name]
+                                ,RTrim(spi.[counter_name]) AS [counter_name]
+                                ,RTRIM(spi.instance_name) AS [instance_name]
+                                ,CAST(spi.[cntr_value] AS BIGINT) AS [cntr_value]
+                                ,spi.[cntr_type]
+                            FROM sys.dm_os_performance_counters AS spi
+                            LEFT JOIN sys.databases AS d
+                                ON LEFT(spi.[instance_name], 36) -- some instance_name values have an additional identifier appended after the GUID
+                                = d.[name]
+                            WHERE
+                                counter_name IN (
+                                     'CPU usage %'
+                                    ,'CPU usage % base'
+                                )
                         )
                         SELECT CAST(SUM(value) AS int) AS avg_CPU_percent
                         FROM (
-                            SELECT 
-	                            CAST(CASE WHEN pc.[cntr_type] = 537003264 AND pc1.[cntr_value] > 0 THEN (pc.[cntr_value] * 1.0) / (pc1.[cntr_value] * 1.0) * 100 ELSE pc.[cntr_value] END AS float(10)) AS [value]
+                            SELECT
+                                CAST(CASE WHEN pc.[cntr_type] = 537003264 AND pc1.[cntr_value] > 0 THEN (pc.[cntr_value] * 1.0) / (pc1.[cntr_value] * 1.0) * 100 ELSE pc.[cntr_value] END AS float(10)) AS [value]
                             from PerfCounters pc
                             LEFT OUTER JOIN PerfCounters AS pc1
-	                            ON (
-		                            pc.[counter_name] = REPLACE(pc1.[counter_name],' base','')
-		                            OR pc.[counter_name] = REPLACE(pc1.[counter_name],' base',' (ms)')
-	                            )
-	                            AND pc.[object_name] = pc1.[object_name]
-	                            AND pc.[instance_name] = pc1.[instance_name]
-	                            AND pc1.[counter_name] LIKE '%base'
+                                ON (
+                                    pc.[counter_name] = REPLACE(pc1.[counter_name],' base','')
+                                    OR pc.[counter_name] = REPLACE(pc1.[counter_name],' base',' (ms)')
+                                )
+                                AND pc.[object_name] = pc1.[object_name]
+                                AND pc.[instance_name] = pc1.[instance_name]
+                                AND pc1.[counter_name] LIKE '%base'
                             WHERE
-	                            pc.[counter_name] NOT LIKE '% base'
+                                pc.[counter_name] NOT LIKE '% base'
                                 AND pc.object_name LIKE '%:Resource Pool Stats'
                         ) AS p
                         OPTION (RECOMPILE);
@@ -282,12 +283,13 @@ namespace WorkloadTools
             try
             {
                 DataTable lastWaits = null;
-                while (!stopped)
+                while (!Stopped)
                 {
-                    var evt = new WaitStatsWorkloadEvent();
-                    evt.Type = WorkloadEvent.EventType.WAIT_stats;
-                    evt.StartTime = DateTime.Now;
-
+                    var evt = new WaitStatsWorkloadEvent
+                    {
+                       Type = WorkloadEvent.EventType.WAIT_stats,
+                       StartTime = DateTime.Now
+                    };
                     var newWaits = GetWaits();
                     evt.Waits = GetDiffWaits(newWaits, lastWaits);
                     lastWaits = newWaits;
@@ -308,8 +310,6 @@ namespace WorkloadTools
                 }
             }
         }
-
-
         private DataTable GetDiffWaits(DataTable newWaits, DataTable lastWaits)
         {
             // no baseline established already
@@ -374,52 +374,52 @@ namespace WorkloadTools
                 conn.Open();
                 // Calculate waits since instance restart
                 var sql = @"
-                    WITH [Waits] 
+                    WITH [Waits]
                     AS (
-	                    SELECT wait_type, wait_time_ms/ 1000.0 AS [WaitS],
+                        SELECT wait_type, wait_time_ms/ 1000.0 AS [WaitS],
                               (wait_time_ms - signal_wait_time_ms) / 1000.0 AS [ResourceS],
                                signal_wait_time_ms / 1000.0 AS [SignalS],
                                waiting_tasks_count AS [WaitCount]
                         FROM sys.dm_os_wait_stats WITH (NOLOCK)
                         WHERE [wait_type] NOT IN (
                             N'BROKER_EVENTHANDLER', N'BROKER_RECEIVE_WAITFOR', N'BROKER_TASK_STOP',
-		                    N'BROKER_TO_FLUSH', N'BROKER_TRANSMITTER', N'CHECKPOINT_QUEUE',
+                            N'BROKER_TO_FLUSH', N'BROKER_TRANSMITTER', N'CHECKPOINT_QUEUE',
                             N'CHKPT', N'CLR_AUTO_EVENT', N'CLR_MANUAL_EVENT', N'CLR_SEMAPHORE',
                             N'DBMIRROR_DBM_EVENT', N'DBMIRROR_EVENTS_QUEUE', N'DBMIRROR_WORKER_QUEUE',
-		                    N'DBMIRRORING_CMD', N'DIRTY_PAGE_POLL', N'DISPATCHER_QUEUE_SEMAPHORE',
+                            N'DBMIRRORING_CMD', N'DIRTY_PAGE_POLL', N'DISPATCHER_QUEUE_SEMAPHORE',
                             N'EXECSYNC', N'FSAGENT', N'FT_IFTS_SCHEDULER_IDLE_WAIT', N'FT_IFTSHC_MUTEX',
-                            N'HADR_CLUSAPI_CALL', N'HADR_FILESTREAM_IOMGR_IOCOMPLETION', N'HADR_LOGCAPTURE_WAIT', 
-		                    N'HADR_NOTIFICATION_DEQUEUE', N'HADR_TIMER_TASK', N'HADR_WORK_QUEUE',
-                            N'KSOURCE_WAKEUP', N'LAZYWRITER_SLEEP', N'LOGMGR_QUEUE', 
-		                    N'MEMORY_ALLOCATION_EXT', N'ONDEMAND_TASK_QUEUE',
-		                    N'PARALLEL_REDO_DRAIN_WORKER', N'PARALLEL_REDO_LOG_CACHE', N'PARALLEL_REDO_TRAN_LIST',
-		                    N'PARALLEL_REDO_WORKER_SYNC', N'PARALLEL_REDO_WORKER_WAIT_WORK',
-		                    N'PREEMPTIVE_HADR_LEASE_MECHANISM', N'PREEMPTIVE_SP_SERVER_DIAGNOSTICS',
-		                    N'PREEMPTIVE_OS_LIBRARYOPS', N'PREEMPTIVE_OS_COMOPS', N'PREEMPTIVE_OS_CRYPTOPS',
-		                    N'PREEMPTIVE_OS_PIPEOPS', N'PREEMPTIVE_OS_AUTHENTICATIONOPS',
-		                    N'PREEMPTIVE_OS_GENERICOPS', N'PREEMPTIVE_OS_VERIFYTRUST',
-		                    N'PREEMPTIVE_OS_FILEOPS', N'PREEMPTIVE_OS_DEVICEOPS', N'PREEMPTIVE_OS_QUERYREGISTRY',
-		                    N'PREEMPTIVE_OS_WRITEFILE',
-		                    N'PREEMPTIVE_XE_CALLBACKEXECUTE', N'PREEMPTIVE_XE_DISPATCHER',
-		                    N'PREEMPTIVE_XE_GETTARGETSTATE', N'PREEMPTIVE_XE_SESSIONCOMMIT',
-		                    N'PREEMPTIVE_XE_TARGETINIT', N'PREEMPTIVE_XE_TARGETFINALIZE',
+                            N'HADR_CLUSAPI_CALL', N'HADR_FILESTREAM_IOMGR_IOCOMPLETION', N'HADR_LOGCAPTURE_WAIT',
+                            N'HADR_NOTIFICATION_DEQUEUE', N'HADR_TIMER_TASK', N'HADR_WORK_QUEUE',
+                            N'KSOURCE_WAKEUP', N'LAZYWRITER_SLEEP', N'LOGMGR_QUEUE',
+                            N'MEMORY_ALLOCATION_EXT', N'ONDEMAND_TASK_QUEUE',
+                            N'PARALLEL_REDO_DRAIN_WORKER', N'PARALLEL_REDO_LOG_CACHE', N'PARALLEL_REDO_TRAN_LIST',
+                            N'PARALLEL_REDO_WORKER_SYNC', N'PARALLEL_REDO_WORKER_WAIT_WORK',
+                            N'PREEMPTIVE_HADR_LEASE_MECHANISM', N'PREEMPTIVE_SP_SERVER_DIAGNOSTICS',
+                            N'PREEMPTIVE_OS_LIBRARYOPS', N'PREEMPTIVE_OS_COMOPS', N'PREEMPTIVE_OS_CRYPTOPS',
+                            N'PREEMPTIVE_OS_PIPEOPS', N'PREEMPTIVE_OS_AUTHENTICATIONOPS',
+                            N'PREEMPTIVE_OS_GENERICOPS', N'PREEMPTIVE_OS_VERIFYTRUST',
+                            N'PREEMPTIVE_OS_FILEOPS', N'PREEMPTIVE_OS_DEVICEOPS', N'PREEMPTIVE_OS_QUERYREGISTRY',
+                            N'PREEMPTIVE_OS_WRITEFILE',
+                            N'PREEMPTIVE_XE_CALLBACKEXECUTE', N'PREEMPTIVE_XE_DISPATCHER',
+                            N'PREEMPTIVE_XE_GETTARGETSTATE', N'PREEMPTIVE_XE_SESSIONCOMMIT',
+                            N'PREEMPTIVE_XE_TARGETINIT', N'PREEMPTIVE_XE_TARGETFINALIZE',
                             N'PWAIT_ALL_COMPONENTS_INITIALIZED', N'PWAIT_DIRECTLOGCONSUMER_GETNEXT',
-		                    N'QDS_PERSIST_TASK_MAIN_LOOP_SLEEP',
-		                    N'QDS_ASYNC_QUEUE',
+                            N'QDS_PERSIST_TASK_MAIN_LOOP_SLEEP',
+                            N'QDS_ASYNC_QUEUE',
                             N'QDS_CLEANUP_STALE_QUERIES_TASK_MAIN_LOOP_SLEEP', N'REQUEST_FOR_DEADLOCK_SEARCH',
-		                    N'RESOURCE_QUEUE', N'SERVER_IDLE_CHECK', N'SLEEP_BPOOL_FLUSH', N'SLEEP_DBSTARTUP',
-		                    N'SLEEP_DCOMSTARTUP', N'SLEEP_MASTERDBREADY', N'SLEEP_MASTERMDREADY',
+                            N'RESOURCE_QUEUE', N'SERVER_IDLE_CHECK', N'SLEEP_BPOOL_FLUSH', N'SLEEP_DBSTARTUP',
+                            N'SLEEP_DCOMSTARTUP', N'SLEEP_MASTERDBREADY', N'SLEEP_MASTERMDREADY',
                             N'SLEEP_MASTERUPGRADED', N'SLEEP_MSDBSTARTUP', N'SLEEP_SYSTEMTASK', N'SLEEP_TASK',
                             N'SLEEP_TEMPDBSTARTUP', N'SNI_HTTP_ACCEPT', N'SP_SERVER_DIAGNOSTICS_SLEEP',
-		                    N'SQLTRACE_BUFFER_FLUSH', N'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', N'SQLTRACE_WAIT_ENTRIES',
-		                    N'WAIT_FOR_RESULTS', N'WAITFOR', N'WAITFOR_TASKSHUTDOWN', N'WAIT_XTP_HOST_WAIT',
-		                    N'WAIT_XTP_OFFLINE_CKPT_NEW_LOG', N'WAIT_XTP_CKPT_CLOSE', N'WAIT_XTP_RECOVERY',
-		                    N'XE_BUFFERMGR_ALLPROCESSED_EVENT', N'XE_DISPATCHER_JOIN',
+                            N'SQLTRACE_BUFFER_FLUSH', N'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', N'SQLTRACE_WAIT_ENTRIES',
+                            N'WAIT_FOR_RESULTS', N'WAITFOR', N'WAITFOR_TASKSHUTDOWN', N'WAIT_XTP_HOST_WAIT',
+                            N'WAIT_XTP_OFFLINE_CKPT_NEW_LOG', N'WAIT_XTP_CKPT_CLOSE', N'WAIT_XTP_RECOVERY',
+                            N'XE_BUFFERMGR_ALLPROCESSED_EVENT', N'XE_DISPATCHER_JOIN',
                             N'XE_DISPATCHER_WAIT', N'XE_LIVE_TARGET_TVF', N'XE_TIMER_EVENT')
                         AND waiting_tasks_count > 0
                     )
                     SELECT
-	                    W1.wait_type,
+                        W1.wait_type,
                         CAST (MAX (W1.WaitS) AS DECIMAL (16,2)) AS [wait_sec],
                         CAST (MAX (W1.ResourceS) AS DECIMAL (16,2)) AS [resource_sec],
                         CAST (MAX (W1.SignalS) AS DECIMAL (16,2)) AS [signal_sec],
@@ -456,18 +456,18 @@ namespace WorkloadTools
             }
         }
 
-
         protected virtual void ReadDiskPerformanceEvents()
         {
             try
             {
                 DataTable lastDiskPerf = null;
-                while (!stopped)
+                while (!Stopped)
                 {
-                    var evt = new DiskPerfWorkloadEvent();
-                    evt.Type = WorkloadEvent.EventType.DiskPerf;
-                    evt.StartTime = DateTime.Now;
-
+                    var evt = new DiskPerfWorkloadEvent
+                    {
+                        Type = WorkloadEvent.EventType.DiskPerf,
+                        StartTime = DateTime.Now
+                    };
                     var newDiskPerf = GetDiskPerf();
                     evt.DiskPerf = GetDiffDiskPerf(newDiskPerf, lastDiskPerf);
                     lastDiskPerf = newDiskPerf;
@@ -497,12 +497,12 @@ namespace WorkloadTools
             {
                 var result = newDiskPerf.Clone();
 
-                if (!result.Columns.Contains("cum_read_latency_ms")) _ = result.Columns.Add("cum_read_latency_ms", typeof(double));
-                if (!result.Columns.Contains("cum_reads")) _ = result.Columns.Add("cum_reads", typeof(double));
-                if (!result.Columns.Contains("cum_read_bytes")) _ = result.Columns.Add("cum_read_bytes", typeof(double));
-                if (!result.Columns.Contains("cum_write_latency_ms")) _ = result.Columns.Add("cum_write_latency_ms", typeof(double));
-                if (!result.Columns.Contains("cum_writes")) _ = result.Columns.Add("cum_writes", typeof(double));
-                if (!result.Columns.Contains("cum_write_bytes")) _ = result.Columns.Add("cum_write_bytes", typeof(double));
+                if (!result.Columns.Contains("cum_read_latency_ms")) { _ = result.Columns.Add("cum_read_latency_ms", typeof(double)); }
+                if (!result.Columns.Contains("cum_reads"))           { _ = result.Columns.Add("cum_reads", typeof(double));           }
+                if (!result.Columns.Contains("cum_read_bytes"))      { _ = result.Columns.Add("cum_read_bytes", typeof(double));      }
+                if (!result.Columns.Contains("cum_write_latency_ms")){ _ = result.Columns.Add("cum_write_latency_ms", typeof(double));}
+                if (!result.Columns.Contains("cum_writes"))          { _ = result.Columns.Add("cum_writes", typeof(double));          }
+                if (!result.Columns.Contains("cum_write_bytes"))     { _ = result.Columns.Add("cum_write_bytes", typeof(double));     }
 
                 foreach (DataRow dr in newDiskPerf.Rows)
                 {
@@ -531,7 +531,6 @@ namespace WorkloadTools
                 }
                 return result;
             }
-
 
             var results = from table1 in newDiskPerf.AsEnumerable()
                           join table2 in lastDiskPerf.AsEnumerable()
@@ -586,34 +585,34 @@ namespace WorkloadTools
                 // Calculate disk performance
                 var sql = @"
                     DECLARE
-	                     @SqlStatement AS nvarchar(max)
-	                    ,@MajorMinorVersion AS int = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar),4) AS int) * 100 + CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar),3) AS int)
-	                    ,@Columns AS nvarchar(max) = ''
-	                    ,@Tables AS nvarchar(max) = ''
+                         @SqlStatement AS nvarchar(max)
+                        ,@MajorMinorVersion AS int = CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar),4) AS int) * 100 + CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar),3) AS int)
+                        ,@Columns AS nvarchar(max) = ''
+                        ,@Tables AS nvarchar(max) = ''
 
                     IF CAST(SERVERPROPERTY('ProductVersion') AS varchar(50)) >= '10.50.2500.0' BEGIN
-	                    SET @Columns += N'
-	                    ,vs.[volume_mount_point]'
-	                    SET @Tables += N'
-	                    CROSS APPLY sys.dm_os_volume_stats(mf.[database_id], mf.[file_id]) AS vs'
+                        SET @Columns += N'
+                        ,vs.[volume_mount_point]'
+                        SET @Tables += N'
+                        CROSS APPLY sys.dm_os_volume_stats(mf.[database_id], mf.[file_id]) AS vs'
                     END
 
                     SET @SqlStatement = N'
                     SELECT
-	                     DB_NAME(vfs.[database_id]) AS [database_name]
-	                    ,COALESCE(mf.[physical_name],''RBPEX'') AS [physical_filename]	--RPBEX = Resilient Buffer Pool Extension
-	                    ,COALESCE(mf.[name],''RBPEX'') AS [logical_filename]	--RPBEX = Resilient Buffer Pool Extension
-	                    ,mf.[type_desc] AS [file_type]
-	                    ,vfs.[io_stall_read_ms] AS [read_latency_ms]
-	                    ,vfs.[num_of_reads] AS [reads]
-	                    ,vfs.[num_of_bytes_read] AS [read_bytes]
-	                    ,vfs.[io_stall_write_ms] AS [write_latency_ms]
-	                    ,vfs.[num_of_writes] AS [writes]
-	                    ,vfs.[num_of_bytes_written] AS [write_bytes]'
-	                    + @Columns + N'
+                         DB_NAME(vfs.[database_id]) AS [database_name]
+                        ,COALESCE(mf.[physical_name],''RBPEX'') AS [physical_filename]    --RPBEX = Resilient Buffer Pool Extension
+                        ,COALESCE(mf.[name],''RBPEX'') AS [logical_filename]    --RPBEX = Resilient Buffer Pool Extension
+                        ,mf.[type_desc] AS [file_type]
+                        ,vfs.[io_stall_read_ms] AS [read_latency_ms]
+                        ,vfs.[num_of_reads] AS [reads]
+                        ,vfs.[num_of_bytes_read] AS [read_bytes]
+                        ,vfs.[io_stall_write_ms] AS [write_latency_ms]
+                        ,vfs.[num_of_writes] AS [writes]
+                        ,vfs.[num_of_bytes_written] AS [write_bytes]'
+                        + @Columns + N'
                     FROM sys.dm_io_virtual_file_stats(NULL, NULL) AS vfs
                     INNER JOIN sys.master_files AS mf WITH (NOLOCK)
-	                    ON vfs.[database_id] = mf.[database_id] AND vfs.[file_id] = mf.[file_id]'
+                        ON vfs.[database_id] = mf.[database_id] AND vfs.[file_id] = mf.[file_id]'
                     + @Tables + ' OPTION (RECOMPILE)';
 
                     EXEC sp_executesql @SqlStatement
@@ -666,41 +665,41 @@ SET @qry = '
 PRINT DB_NAME()
 BEGIN TRAN WorkloadTools WITH MARK ''WorkloadTools'';
 BEGIN TRY
-	CREATE TYPE WorkloadToolsType FROM int;
-	DROP TYPE WorkloadToolsType;
-	IF XACT_STATE() = 1 
-		COMMIT TRAN WorkloadTools;
+    CREATE TYPE WorkloadToolsType FROM int;
+    DROP TYPE WorkloadToolsType;
+    IF XACT_STATE() = 1
+        COMMIT TRAN WorkloadTools;
 END TRY
 BEGIN CATCH
-	IF XACT_STATE() <> 0 
-		ROLLBACK TRAN WorkloadTools;
+    IF XACT_STATE() <> 0
+        ROLLBACK TRAN WorkloadTools;
 END CATCH
 '
 
 
 DECLARE c CURSOR STATIC LOCAL FORWARD_ONLY READ_ONLY FOR
 SELECT name
-FROM sys.databases 
+FROM sys.databases
 WHERE database_id > 4
 " + (allDatabases ? "" : "AND database_id = DB_ID()") + @"
 ORDER BY name
 
-OPEN c 
+OPEN c
 FETCH NEXT FROM c INTO @dbname
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
 
-	SET @sql = 'EXEC ' + QUOTENAME(@dbname) + '.sys.sp_executesql @qry'
+    SET @sql = 'EXEC ' + QUOTENAME(@dbname) + '.sys.sp_executesql @qry'
 
-	BEGIN TRY
-		EXEC sp_executesql @sql, N'@qry nvarchar(max)', @qry
-	END TRY
-	BEGIN CATCH
-		PRINT 'Unable to mark the transaction on database ' + @dbname
-	END CATCH
+    BEGIN TRY
+        EXEC sp_executesql @sql, N'@qry nvarchar(max)', @qry
+    END TRY
+    BEGIN CATCH
+        PRINT 'Unable to mark the transaction on database ' + @dbname
+    END CATCH
 
-	FETCH NEXT FROM c INTO @dbname
+    FETCH NEXT FROM c INTO @dbname
 END
 
 CLOSE c

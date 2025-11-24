@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,22 +19,21 @@ namespace WorkloadTools
         public int MaxPoolSize { get; set; } = 500;
         public Dictionary<string, string> DatabaseMap { get; set; } = new Dictionary<string, string>();
 
-
         public SqlConnectionInfo() { }
 
         public SqlConnectionInfo(SqlConnectionInfo info)
         {
-            this.ServerName = info.ServerName;
-            this.DatabaseName = info.DatabaseName;
-            this.SchemaName = info.SchemaName;
-            this.UseIntegratedSecurity = info.UseIntegratedSecurity;
-            this.UserName = info.UserName;
-            this.Password = info.Password;
-            this.Encrypt = info.Encrypt;
-            this.TrustServerCertificate = info.TrustServerCertificate;
-            this.ApplicationName = info.ApplicationName;
-            this.MaxPoolSize = info.MaxPoolSize;
-            this.DatabaseMap = info.DatabaseMap;
+            ServerName = info.ServerName;
+            DatabaseName = info.DatabaseName;
+            SchemaName = info.SchemaName;
+            UseIntegratedSecurity = info.UseIntegratedSecurity;
+            UserName = info.UserName;
+            Password = info.Password;
+            Encrypt = info.Encrypt;
+            TrustServerCertificate = info.TrustServerCertificate;
+            ApplicationName = info.ApplicationName;
+            MaxPoolSize = info.MaxPoolSize;
+            DatabaseMap = info.DatabaseMap;
         }
 
         public string ConnectionString()

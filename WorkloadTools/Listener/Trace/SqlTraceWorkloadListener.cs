@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -32,14 +32,12 @@ namespace WorkloadTools.Listener.Trace
         // By default, stream from TDS
         public StreamSourceEnum StreamSource { get; set; } = StreamSourceEnum.StreamFromTDS;
 
-		public int TraceSizeMB { get; set; } = 10;
-		public int TraceRolloverCount { get; set; } = 30;
-		
-		
+        public int TraceSizeMB { get; set; } = 10;
+        public int TraceRolloverCount { get; set; } = 30;
 
         private readonly TraceUtils utils;
 
-		public SqlTraceWorkloadListener() : base()
+        public SqlTraceWorkloadListener() : base()
         {
             Filter = new TraceEventFilter();
             Source = WorkloadController.BaseLocation + "\\Listener\\Trace\\sqlworkload.sql";
@@ -114,7 +112,7 @@ namespace WorkloadTools.Listener.Trace
                 WorkloadEvent result = null;
                 while (!Events.TryDequeue(out result))
                 {
-                    if (stopped)
+                    if (Stopped)
                     {
                         return null;
                     }
@@ -125,7 +123,7 @@ namespace WorkloadTools.Listener.Trace
             }
             catch (Exception)
             {
-                if (stopped)
+                if (Stopped)
                 {
                     return null;
                 }
@@ -152,7 +150,7 @@ namespace WorkloadTools.Listener.Trace
         {
             try
             {
-                while(!stopped)
+                while(!Stopped)
                 {
                     // get first trace rollover file
                     var files = Directory.GetFiles(tracePath, "sqlworkload*.trc").ToList();
@@ -163,7 +161,7 @@ namespace WorkloadTools.Listener.Trace
                     {
                         reader.InitializeAsReader(traceFile);
 
-                        while (reader.Read() && !stopped)
+                        while (reader.Read() && !Stopped)
                         {
                             try
                             {
@@ -247,7 +245,7 @@ namespace WorkloadTools.Listener.Trace
 
         protected override void Dispose(bool disposing)
         {
-            stopped = true;
+            Stopped = true;
             using (var conn = new SqlConnection())
             {
                 conn.ConnectionString = ConnectionInfo.ConnectionString();
@@ -259,8 +257,8 @@ namespace WorkloadTools.Listener.Trace
 
         private void StopTrace(SqlConnection conn, int id)
         {
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = string.Format(@"
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = string.Format(@"
                     IF EXISTS (
                         SELECT *
                         FROM sys.traces

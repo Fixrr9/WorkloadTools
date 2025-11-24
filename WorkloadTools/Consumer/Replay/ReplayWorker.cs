@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -26,7 +26,7 @@ namespace WorkloadTools.Consumer.Replay
         // Unlike the other loggers this one is not static because we
         // need unique properties for each instance of ReplayWorker.
         private readonly Logger logger;
-        public bool isExecuting { get; set; }
+        public bool IsExecuting { get; set; }
         public bool DisplayWorkerStats { get; set; }
         public bool ConsumeResults { get; set; }
         public int QueryTimeoutSeconds { get; set; }
@@ -189,8 +189,8 @@ namespace WorkloadTools.Consumer.Replay
         [MethodImpl(MethodImplOptions.Synchronized)]
         public void ExecuteCommand(ReplayCommand command, int failRetryCount = 0, int timeoutRetryCount = 0)
         {
-            
-            isExecuting = true;
+
+            IsExecuting = true;
             try
             {
                 LastCommandTime = DateTime.Now;
@@ -498,7 +498,7 @@ namespace WorkloadTools.Consumer.Replay
             }
             finally
             {
-                isExecuting = false;
+                IsExecuting = false;
             }
         }
 
@@ -660,7 +660,9 @@ MESSAGE:
         {
             if (runner != null && !runner.IsCompleted)
             {
+#pragma warning disable IDE0058
                 runner.Wait(timeout);
+#pragma warning restore IDE0058
             }
         }
 

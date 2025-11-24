@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -35,7 +35,7 @@ namespace WorkloadTools.Consumer.Analysis
         private bool stopped = false;
 
         private ConcurrentDictionary<ExecutionDetailKey,List<ExecutionDetailValue>> rawData;
-		private DataTable errorData;
+        private DataTable errorData;
         private readonly SqlTextNormalizer normalizer;
         private bool TargetTableCreated = false;
         private bool FirstIntervalWritten = false;
@@ -45,8 +45,8 @@ namespace WorkloadTools.Consumer.Analysis
         private DataTable diskPerfData;
 
         public int MaximumWriteRetries { get; set; }
-		public bool TruncateTo4000 { get; set; }
-		public bool TruncateTo1024 { get; set; }
+        public bool TruncateTo4000 { get; set; }
+        public bool TruncateTo1024 { get; set; }
         public bool WriteDetail { get; set; } = true;
         public bool WriteSummary { get; set; } = true;
 
@@ -61,13 +61,13 @@ namespace WorkloadTools.Consumer.Analysis
         private DateTime lastEventTime = DateTime.MinValue;
 
         public WorkloadAnalyzer()
-		{
-			normalizer = new SqlTextNormalizer()
-			{
-				TruncateTo1024 = TruncateTo1024,
-				TruncateTo4000 = TruncateTo4000
-			};
-		}
+        {
+            normalizer = new SqlTextNormalizer()
+            {
+                TruncateTo1024 = TruncateTo1024,
+                TruncateTo4000 = TruncateTo4000
+            };
+        }
 
         public bool HasEventsQueued => _internalQueue.Count > 0;
 
@@ -238,15 +238,15 @@ namespace WorkloadTools.Consumer.Analysis
             }
         }
 
-		private void InternalAdd(ErrorWorkloadEvent evt)
-		{
-			var row = errorData.NewRow();
-			row.SetField("message", evt.Text);
+        private void InternalAdd(ErrorWorkloadEvent evt)
+        {
+            var row = errorData.NewRow();
+            row.SetField("message", evt.Text);
             row.SetField("type", evt.Type);
             errorData.Rows.Add(row);
-		}
+        }
 
-		private void InternalAdd(WaitStatsWorkloadEvent evt)
+        private void InternalAdd(WaitStatsWorkloadEvent evt)
         {
             if (waitsData == null)
             {
@@ -868,50 +868,50 @@ namespace WorkloadTools.Consumer.Analysis
             }
         }
 
-		private void WriteExecutionErrors(SqlConnection conn, SqlTransaction tran, int current_interval_id)
-		{
+        private void WriteExecutionErrors(SqlConnection conn, SqlTransaction tran, int current_interval_id)
+        {
 
-			if (errorData == null)
+            if (errorData == null)
             {
                 PrepareDataTables();
             }
 
             lock (errorData)
-			{
-				using (var bulkCopy = new System.Data.SqlClient.SqlBulkCopy(conn,
-												SqlBulkCopyOptions.KeepIdentity |
-												SqlBulkCopyOptions.FireTriggers |
-												SqlBulkCopyOptions.CheckConstraints |
-												SqlBulkCopyOptions.TableLock,
-												tran))
-				{
+            {
+                using (var bulkCopy = new System.Data.SqlClient.SqlBulkCopy(conn,
+                                                SqlBulkCopyOptions.KeepIdentity |
+                                                SqlBulkCopyOptions.FireTriggers |
+                                                SqlBulkCopyOptions.CheckConstraints |
+                                                SqlBulkCopyOptions.TableLock,
+                                                tran))
+                {
 
-					bulkCopy.DestinationTableName = "[" + ConnectionInfo.SchemaName + "].[Errors]";
-					bulkCopy.BatchSize = 1000;
-					bulkCopy.BulkCopyTimeout = 300;
+                    bulkCopy.DestinationTableName = "[" + ConnectionInfo.SchemaName + "].[Errors]";
+                    bulkCopy.BatchSize = 1000;
+                    bulkCopy.BulkCopyTimeout = 300;
 
-					var Table = from t in errorData.AsEnumerable()
-								group t by new
-								{
+                    var Table = from t in errorData.AsEnumerable()
+                                group t by new
+                                {
                                     type = t.Field<int>("type"),
-									message = t.Field<string>("message")
-								}
-								into grp
-								select new
-								{
-									interval_id = current_interval_id,
+                                    message = t.Field<string>("message")
+                                }
+                                into grp
+                                select new
+                                {
+                                    interval_id = current_interval_id,
                                     error_type = ((WorkloadEvent.EventType)grp.Key.type).ToString(),
-									grp.Key.message,
-									error_count = grp.Count()
-								};
+                                    grp.Key.message,
+                                    error_count = grp.Count()
+                                };
 
-					bulkCopy.WriteToServer(DataUtils.ToDataTable(Table));
-				}
-				errorData.Rows.Clear();
-			}
-		}
+                    bulkCopy.WriteToServer(DataUtils.ToDataTable(Table));
+                }
+                errorData.Rows.Clear();
+            }
+        }
 
-		private void WriteDictionary(Dictionary<string, int> values, SqlConnection conn, SqlTransaction tran, string name)
+        private void WriteDictionary(Dictionary<string, int> values, SqlConnection conn, SqlTransaction tran, string name)
         {
 
             // create a temporary table
@@ -1089,16 +1089,16 @@ namespace WorkloadTools.Consumer.Analysis
         private void PrepareDataTables()
         {
             rawData = new ConcurrentDictionary<ExecutionDetailKey, List<ExecutionDetailValue>>();
-			errorData = new DataTable();
+            errorData = new DataTable();
             _ = errorData.Columns.Add("type", typeof(int));
             _ = errorData.Columns.Add("message", typeof(string));
-		}
+        }
 
         private void PrepareDictionaries()
         {
-			CreateTargetDatabase();
+            CreateTargetDatabase();
 
-			using (var conn = new SqlConnection())
+            using (var conn = new SqlConnection())
             {
                 conn.ConnectionString = ConnectionInfo.ConnectionString();
                 conn.Open();
@@ -1148,9 +1148,9 @@ namespace WorkloadTools.Consumer.Analysis
 
         protected void CreateTargetTables()
         {
-			CreateTargetDatabase();
+            CreateTargetDatabase();
 
-			var sql = File.ReadAllText(WorkloadController.BaseLocation + "\\Consumer\\Analysis\\DatabaseSchema.sql");
+            var sql = File.ReadAllText(WorkloadController.BaseLocation + "\\Consumer\\Analysis\\DatabaseSchema.sql");
 
             sql = sql.Replace("{DatabaseName}", ConnectionInfo.DatabaseName);
             sql = sql.Replace("{SchemaName}", ConnectionInfo.SchemaName);
@@ -1209,43 +1209,45 @@ namespace WorkloadTools.Consumer.Analysis
             }
         }
 
-		protected void CreateTargetDatabase()
-		{
+        protected void CreateTargetDatabase()
+        {
 
-			try
-			{
+            try
+            {
                 var databaseName = ConnectionInfo.DatabaseName;
                 using (var conn = new SqlConnection())
-				{
-                    // create a new connection to the target server 
+                {
+                    // create a new connection to the target server
                     // for the analysis database, on the master db
                     // then create the target database if not available
-                    var ci = new SqlConnectionInfo(ConnectionInfo);
-                    ci.DatabaseName = "master";
-					conn.ConnectionString = ConnectionInfo.ConnectionString();
-					conn.Open();
+                    var ci = new SqlConnectionInfo(ConnectionInfo)
+                    {
+                        DatabaseName = "master"
+                    };
+                    conn.ConnectionString = ConnectionInfo.ConnectionString();
+                    conn.Open();
 
-					using (var cmd = conn.CreateCommand())
-					{
-						var createDb = @"
-						IF DB_ID(@name) IS NULL
-						BEGIN
-						    DECLARE @sql nvarchar(max); 
-							SET @sql = N'CREATE DATABASE ' + QUOTENAME(@name);
-							EXEC sp_executesql @sql;
-						END
-					";
-						cmd.CommandText = createDb;
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        var createDb = @"
+                        IF DB_ID(@name) IS NULL
+                        BEGIN
+                            DECLARE @sql nvarchar(max);
+                            SET @sql = N'CREATE DATABASE ' + QUOTENAME(@name);
+                            EXEC sp_executesql @sql;
+                        END
+                    ";
+                        cmd.CommandText = createDb;
                         _ = cmd.Parameters.AddWithValue("@name", databaseName);
                         _ = cmd.ExecuteNonQuery();
-					}
-				}
-			}
+                    }
+                }
+            }
             catch(Exception e) {
                 logger.Warn("Unable to create the target database for the analysis", e.Message);
             }
 
-		}
+        }
 
         public void Dispose()
         {

@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,10 +16,10 @@ namespace WorkloadTools
         public int BufferSize
         {
             get => _bufferSize;
-            set { _bufferSize = value; initialize(); }
+            set { _bufferSize = value; Initialize(); }
         }
 
-        protected object syncRoot = new object();
+        protected object SyncRoot = new object();
 
         private WorkloadEvent[] _array;
         private WorkloadEvent[] _overflowArray;
@@ -34,7 +34,7 @@ namespace WorkloadTools
         {
             get
             {
-                lock (syncRoot)
+                lock (SyncRoot)
                 {
                     return _size + _totOverflowSize;
                 }
@@ -43,10 +43,10 @@ namespace WorkloadTools
 
         public BufferedEventQueue()
         {
-            initialize();
+            Initialize();
         }
 
-        private void initialize()
+        private void Initialize()
         {
             _array = new WorkloadEvent[BufferSize];
             _overflowArray = null;
@@ -59,7 +59,7 @@ namespace WorkloadTools
 
         public virtual void Enqueue(WorkloadEvent evt)
         {
-            lock (syncRoot)
+            lock (SyncRoot)
             {
                 if (_overflowArray != null)
                 {
@@ -150,7 +150,7 @@ namespace WorkloadTools
             result = null;
             try
             {
-                lock (syncRoot)
+                lock (SyncRoot)
                 {
                     if (Count == 0)
                     {

@@ -1,4 +1,4 @@
-﻿using Microsoft.SqlServer.XEvent.Linq;
+using Microsoft.SqlServer.XEvent.Linq;
 using NLog;
 using System;
 using System.Collections.Concurrent;
@@ -22,7 +22,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
         private bool stopped;
 
-        public StreamXEventDataReader(string connectionString, string sessionName, IEventQueue events) : base(connectionString, sessionName, events, ExtendedEventsWorkloadListener.ServerType.AzureSqlDatabase)
+        public StreamXEventDataReader(string connectionString, string sessionName, IEventQueue events) : base(connectionString, sessionName, events, ExtendedEventsWorkloadListener.ServerTypeEnum.AzureSqlDatabase)
         {
         }
 

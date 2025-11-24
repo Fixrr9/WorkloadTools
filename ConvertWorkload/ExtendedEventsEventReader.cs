@@ -17,9 +17,9 @@ namespace ConvertWorkload
  
     public class ExtendedEventsEventReader : EventReader
     {
-        private static Logger logger = LogManager.GetCurrentClassLogger();
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
-        private string filePath;
+        private readonly string filePath;
         private bool started = false;
         private bool finished = false;
 
@@ -27,19 +27,22 @@ namespace ConvertWorkload
 
         public ExtendedEventsEventReader(string path)
         {
-            Events = new BinarySerializedBufferedEventQueue();
-            Events.BufferSize = 10000;
+            Events = new BinarySerializedBufferedEventQueue
+            {
+                BufferSize = 10000
+            };
             filePath = path;
             Filter = new ExtendedEventsEventFilter();
         }
-
 
         private void ReadEventsFromFile()
         {
             try
             {
-                var info = new SqlConnectionInfo();
-                info.ServerName = "(localdb)\\MSSQLLocalDB";
+                var info = new SqlConnectionInfo
+                {
+                    ServerName = "(localdb)\\MSSQLLocalDB"
+                };
 
                 var sqlCreateTable = @"
                     IF OBJECT_ID('tempdb.dbo.trace_reader_queue') IS NULL
@@ -72,7 +75,7 @@ namespace ConvertWorkload
                     }
                 }
 
-                reader = new FileTargetXEventDataReader(info.ConnectionString(), null, Events, ExtendedEventsWorkloadListener.ServerType.LocalDB);
+                reader = new FileTargetXEventDataReader(info.ConnectionString(), null, Events, ExtendedEventsWorkloadListener.ServerTypeEnum.LocalDB);
                 reader.ReadEvents();
                 finished = true;
                     
@@ -90,7 +93,6 @@ namespace ConvertWorkload
             }
         }
 
-
         public override bool HasFinished()
         {
             return finished && !Events.HasMoreElements();
@@ -98,7 +100,7 @@ namespace ConvertWorkload
 
         public override bool HasMoreElements()
         {
-            return !finished && !stopped && (started ? Events.HasMoreElements() : true);
+            return !finished && !stopped && (!started || Events.HasMoreElements());
         }
 
         public override WorkloadEvent Read()

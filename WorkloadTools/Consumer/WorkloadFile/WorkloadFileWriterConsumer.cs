@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
@@ -23,7 +23,7 @@ namespace WorkloadTools.Consumer.WorkloadFile
         // if not enough events are generated to flush the cache
         // a flush is forced every CACHE_FLUSH_HEARTBEAT_MINUTES 
         public static int CACHE_FLUSH_HEARTBEAT_MINUTES = 1;
-        public DateTime lastFlush = DateTime.Now;
+        public DateTime LastFlush = DateTime.Now;
 
         private bool databaseInitialized = false;
         private int row_id = 1;
@@ -119,7 +119,6 @@ namespace WorkloadTools.Consumer.WorkloadFile
                     $value
                 );";
 
-
         private readonly string insert_diskperf = @"
                 INSERT INTO DiskPerf (
                     row_id,
@@ -177,7 +176,7 @@ namespace WorkloadTools.Consumer.WorkloadFile
 
         private void Flush()
         {
-            if (DateTime.Now.Subtract(lastFlush).TotalMinutes >= CACHE_FLUSH_HEARTBEAT_MINUTES)
+            if (DateTime.Now.Subtract(LastFlush).TotalMinutes >= CACHE_FLUSH_HEARTBEAT_MINUTES)
             {
                 forceFlush = true;
             }
@@ -211,7 +210,7 @@ namespace WorkloadTools.Consumer.WorkloadFile
                 }
                 finally
                 {
-                    lastFlush = DateTime.Now;
+                    LastFlush = DateTime.Now;
                     forceFlush = false;
                 }
             }
@@ -347,7 +346,7 @@ namespace WorkloadTools.Consumer.WorkloadFile
             }
             catch (Exception e)
             {
-                if (stopped)
+                if (Stopped)
                 {
                     return;
                 }
@@ -403,8 +402,6 @@ namespace WorkloadTools.Consumer.WorkloadFile
                 throw;
             }
         }
-
-
         private void InsertDiskPerfEvent(WorkloadEvent evnt)
         {
             var evt = (DiskPerfWorkloadEvent)evnt;
@@ -642,7 +639,7 @@ SELECT 'FormatVersion','{Assembly.GetEntryAssembly().GetName().Version}'
                 //ignore
             }
 
-            stopped = true;
+            Stopped = true;
         }
 
         public override bool HasMoreEvents()
@@ -653,8 +650,8 @@ SELECT 'FormatVersion','{Assembly.GetEntryAssembly().GetName().Version}'
         {
             var start = DateTime.Now;
 
-            stopped = true;
-            while (buffer.Count > 0 && DateTime.Now - start < timeout)
+            Stopped = true;
+            while (Buffer.Count > 0 && DateTime.Now - start < timeout)
             {
                 Thread.Sleep(100);
             }

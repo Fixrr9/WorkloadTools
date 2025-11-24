@@ -1,0 +1,109 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# All files
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Code files
+[*.{cs,csx,vb,vbx}]
+indent_size = 4
+indent_style = space
+tab_width = 4
+
+# C# files
+[*.cs]
+# Indentation preferences
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_indent_labels = flush_left
+
+# Prefer braces even for one line of code
+csharp_prefer_braces = true:warning
+
+# New line preferences
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+csharp_new_line_between_query_expression_clauses = true
+
+# Space preferences
+csharp_space_after_cast = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_parentheses = false
+csharp_space_before_colon_in_inheritance_clause = true
+csharp_space_after_colon_in_inheritance_clause = true
+csharp_space_around_binary_operators = before_and_after
+csharp_space_between_method_declaration_empty_parameter_list_parentheses = false
+csharp_space_between_method_call_name_and_opening_parenthesis = false
+csharp_space_between_method_call_empty_parameter_list_parentheses = false
+csharp_space_after_comma = true
+csharp_space_after_dot = false
+
+# Wrapping preferences
+csharp_preserve_single_line_statements = false
+csharp_preserve_single_line_blocks = true
+
+# Using directive preferences
+csharp_using_directive_placement = outside_namespace:warning
+
+# Naming conventions
+# Constants should be PascalCase
+dotnet_naming_rule.constants_should_be_pascal_case.severity = warning
+dotnet_naming_rule.constants_should_be_pascal_case.symbols = constants
+dotnet_naming_rule.constants_should_be_pascal_case.style = pascal_case_style
+
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.applicable_accessibilities = *
+dotnet_naming_symbols.constants.required_modifiers = const
+
+# Public members must be capitalized
+dotnet_naming_rule.public_members_must_be_capitalized.severity = warning
+dotnet_naming_rule.public_members_must_be_capitalized.symbols = public_symbols
+dotnet_naming_rule.public_members_must_be_capitalized.style = pascal_case_style
+
+dotnet_naming_symbols.public_symbols.applicable_kinds = property,method,field,event,delegate
+dotnet_naming_symbols.public_symbols.applicable_accessibilities = public,internal,protected,protected_internal
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# Code quality rules
+dotnet_diagnostic.CA1303.severity = none # Do not pass literals as localized parameters (too restrictive for this project)
+
+# Style preferences
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+
+# Prefer "var" only when type is obvious
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# Code block preferences
+csharp_prefer_simple_using_statement = true:suggestion
+
+# Expression preferences
+dotnet_style_prefer_auto_properties = true:suggestion
+dotnet_style_prefer_conditional_expression_over_return = false:silent
+csharp_prefer_simple_default_expression = true:suggestion
+
+# File header template
+file_header_template = unset
+
+# Line length (not enforced by EditorConfig but documented here)
+# Max line length: 140 characters
+
+# Organize usings
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false

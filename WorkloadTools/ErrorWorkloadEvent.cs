@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace WorkloadTools
 {
-	[Serializable]
-	public class ErrorWorkloadEvent : ExecutionWorkloadEvent
-	{
-		public ErrorWorkloadEvent()
+    [Serializable]
+    public class ErrorWorkloadEvent : ExecutionWorkloadEvent
+    {
+        public ErrorWorkloadEvent()
         {
             Type = EventType.Error;
         }
-	}
+    }
 }

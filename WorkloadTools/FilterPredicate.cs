@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace WorkloadTools
 {
@@ -55,7 +55,7 @@ namespace WorkloadTools
             }
         }
         public FilterComparisonOperator[] ComparisonOperator { get; set; }
-        public bool IsPredicateSet { get { return PredicateValue != null; } }
+        public bool IsPredicateSet => PredicateValue != null;
         public bool IsPushedDown { get; set; } = false;
 
         public FilterPredicate(FilterColumnName name)

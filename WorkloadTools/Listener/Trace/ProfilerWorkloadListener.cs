@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -67,7 +67,7 @@ namespace WorkloadTools.Listener.Trace
         public override WorkloadEvent Read()
         {
             WorkloadEvent result = null;
-            while(!stopped && !events.TryDequeue(out result)) {
+            while(!Stopped && !events.TryDequeue(out result)) {
                 Thread.Sleep(10);
             }
             return result;
@@ -75,13 +75,13 @@ namespace WorkloadTools.Listener.Trace
 
         protected override void Dispose(bool disposing)
         {
-            if (stopped)
+            if (Stopped)
             {
                 return;
             }
             // close the trace, if open
             // shut down the reader thread
-            stopped = true;
+            Stopped = true;
             try
             {
                 trace.Close();
@@ -97,7 +97,7 @@ namespace WorkloadTools.Listener.Trace
         {
             try
             {
-                while (trace.Read() && !stopped)
+                while (trace.Read() && !Stopped)
                 {
                     try
                     {

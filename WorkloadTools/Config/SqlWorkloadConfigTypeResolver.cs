@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -14,9 +14,9 @@ namespace WorkloadTools.Config
         static SqlWorkloadConfigTypeResolver()
         {
             var currentAssembly = Assembly.GetExecutingAssembly();
-            var nameSpace = "WorkloadTools";
-            var types = currentAssembly.GetTypes().Where(t => t != null && t.FullName.StartsWith(nameSpace) & !t.FullName.Contains("+")).ToArray();
-            foreach (var t in types)
+            String nameSpace = "WorkloadTools";
+            Type[] types = currentAssembly.GetTypes().Where(t => t != null && t.FullName.StartsWith(nameSpace) & !t.FullName.Contains("+")).ToArray();
+            foreach (Type t in types)
             {
                 try
                 {

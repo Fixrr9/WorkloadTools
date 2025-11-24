@@ -14,9 +14,9 @@ namespace WorkloadTools.Listener.Trace
             var sql = @"
                 SELECT TOP(1) id
                 FROM (
-	                SELECT id FROM sys.traces WHERE path LIKE '{0}%'
-	                UNION ALL
-	                SELECT -1
+                    SELECT id FROM sys.traces WHERE path LIKE '{0}%'
+                    UNION ALL
+                    SELECT -1
                 ) AS i
                 ORDER BY id DESC
             ";
@@ -32,17 +32,17 @@ namespace WorkloadTools.Listener.Trace
             DECLARE @defaultLog nvarchar(4000);
 
             EXEC master.dbo.xp_instance_regread
-	            N'HKEY_LOCAL_MACHINE',
-	            N'Software\Microsoft\MSSQLServer\MSSQLServer',
-	            N'DefaultLog',
-	            @defaultLog OUTPUT;
+                N'HKEY_LOCAL_MACHINE',
+                N'Software\Microsoft\MSSQLServer\MSSQLServer',
+                N'DefaultLog',
+                @defaultLog OUTPUT;
 
             IF @defaultLog IS NULL
             BEGIN
-	            SELECT @defaultLog = REPLACE(physical_name,'mastlog.ldf','') 
-	            FROM sys.master_files
+                SELECT @defaultLog = REPLACE(physical_name,'mastlog.ldf','')
+                FROM sys.master_files
                 WHERE file_id = 2
-					AND database_id = 1;
+                    AND database_id = 1;
             END
 
             SELECT @defaultLog AS DefaultLog;

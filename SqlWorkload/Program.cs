@@ -20,13 +20,13 @@ using WorkloadTools.Listener.Trace;
 
 namespace SqlWorkload
 {
-    class Program
+    internal class Program
     {
 
-        private static Logger logger = LogManager.GetCurrentClassLogger();
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
         private static CancellationTokenSource source;
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(GenericErrorHandler);
             GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
@@ -53,7 +53,7 @@ namespace SqlWorkload
 
         }
 
-        static void Run(Options options)
+        private static void Run(Options options)
         {
             // reconfigure loggers to use a file in the current directory
             // or the file specified by the "Log" commandline parameter
@@ -62,11 +62,7 @@ namespace SqlWorkload
                 var target = (FileTarget)LogManager.Configuration.FindTargetByName("logfile");
                 if (target != null)
                 {
-                    var pathToLog = options.LogFile;
-                    if (pathToLog == null)
-                    {
-                        pathToLog = Path.Combine(Environment.CurrentDirectory, "SqlWorkload.log");
-                    }
+                    var pathToLog = options.LogFile ?? Path.Combine(Environment.CurrentDirectory, "SqlWorkload.log");
                     if (!Path.IsPathRooted(pathToLog))
                     {
                         pathToLog = Path.Combine(Environment.CurrentDirectory, pathToLog);
@@ -90,7 +86,7 @@ namespace SqlWorkload
             }
 
             options.ConfigurationFile = System.IO.Path.GetFullPath(options.ConfigurationFile);
-            logger.Info(String.Format("Reading configuration from '{0}'", options.ConfigurationFile));
+            logger.Info(string.Format("Reading configuration from '{0}'", options.ConfigurationFile));
 
             if (!File.Exists(options.ConfigurationFile))
             {
@@ -109,16 +105,13 @@ namespace SqlWorkload
                 config.Controller.Stop();
             };
 
-            var t = processController(config.Controller);  
+            var t = ProcessController(config.Controller);  
             t.Wait();
             logger.Info("Controller stopped.");
             config.Controller.Dispose();
             logger.Info("Controller disposed.");
         }
-
-
-
-        static void GenericErrorHandler(object sender, UnhandledExceptionEventArgs e)
+        private static void GenericErrorHandler(object sender, UnhandledExceptionEventArgs e)
         {
             try
             {
@@ -129,31 +122,25 @@ namespace SqlWorkload
                 Console.WriteLine("Caught unhandled exception...");
             }
         }
-
-
-        public static async Task processController(WorkloadController controller)
+        public static async Task ProcessController(WorkloadController controller)
         {
             source = new CancellationTokenSource();
+#pragma warning disable IDE0058
             source.Token.Register(CancelNotification);
             var completionSource = new TaskCompletionSource<object>();
             source.Token.Register(() => completionSource.TrySetCanceled());
             var task = Task.Factory.StartNew(() => controller.Run(), source.Token);
             await Task.WhenAny(task, completionSource.Task);
+#pragma warning restore IDE0058
         }
 
         public static void CancelNotification()
         {
             logger.Info("Shutdown complete.");
         }
-
-
     }
 
-
-
-
-
-    class Options
+    internal class Options
     {
         [Option('F', "File", DefaultValue = "SqlWorkload.json", HelpText = "Configuration file")]
         public string ConfigurationFile { get; set; }
@@ -171,7 +158,7 @@ namespace SqlWorkload
         public string GetUsage()
         {
             return HelpText.AutoBuild(this,
-              (HelpText current) => HelpText.DefaultParsingErrorsHandler(this, current));
+              current => HelpText.DefaultParsingErrorsHandler(this, current));
         }
     
     }

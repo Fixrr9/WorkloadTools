@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -34,19 +34,19 @@ namespace WorkloadTools.Util
         /// <summary>
         /// the internal buffer
         /// </summary>
-        readonly T[] _buffer;
+        private readonly T[] _buffer;
         /// <summary>
         /// The all-over position within the ring buffer. The position 
         /// increases continously by adding new items to the buffer. This 
         /// value is needed to calculate the current relative position within the 
         /// buffer.
         /// </summary>
-        int _position;
+        private int _position;
         /// <summary>
         /// The current version of the buffer, this is required for a correct 
         /// exception handling while enumerating over the items of the buffer.
         /// </summary>
-        long _version;
+        private long _version;
 
         /// <summary>
         /// Gets or sets an item for a specified position within the ring buffer.
@@ -94,7 +94,7 @@ namespace WorkloadTools.Util
             // avoid an arithmetic overflow
             if (_position == int.MaxValue)
             {
-                _position = _position % Capacity;
+                _position %= Capacity;
             }
             // add a new item to the current relative position within the
             // buffer and increase the position
@@ -116,7 +116,7 @@ namespace WorkloadTools.Util
         {
             for (var i = 0; i < Count; i++)
             {
-                _buffer[i] = default(T);
+                _buffer[i] = default;
             }
 
             _position = 0;
@@ -318,7 +318,7 @@ namespace WorkloadTools.Util
             // get the relative position of the last item, which becomes empty
             // after deletion and set the item as empty
             var last = (_position - 1) % Capacity;
-            _buffer[last] = default(T);
+            _buffer[last] = default;
             // adjust storage information
             _position--;
             Count--;
@@ -329,7 +329,7 @@ namespace WorkloadTools.Util
         /// <summary>
         /// Gets if the buffer is read-only. This method always returns false.
         /// </summary>
-        bool ICollection<T>.IsReadOnly { get { return false; } }
+        bool ICollection<T>.IsReadOnly => false; 
 
         /// <summary>
         /// See generic implementation of <see cref="GetEnumerator"/>.

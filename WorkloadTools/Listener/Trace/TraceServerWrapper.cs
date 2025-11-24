@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
@@ -17,8 +17,7 @@ namespace WorkloadTools.Listener.Trace
         private static readonly Assembly _baseAssembly;
         private static readonly Type _baseType;
 
-        private bool isRunning = false;
-        public bool IsRunning { get { return isRunning; } }
+        public bool IsRunning { get; private set; } = false;
 
         static TraceServerWrapper()
         {
@@ -73,7 +72,7 @@ namespace WorkloadTools.Listener.Trace
         public void Stop()
         {
             //_baseType.InvokeMember("Pause", BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.InvokeMethod, (Binder)null, TraceServer, (object[])null);
-            isRunning = false;
+            IsRunning = false;
             _ = _baseType.InvokeMember("Stop", BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.InvokeMethod, (Binder)null, TraceServer, (object[])null);
         }
 
@@ -88,7 +87,7 @@ namespace WorkloadTools.Listener.Trace
             {
                 var args = new object[2] { connectionInfo.SqlConnectionInfo, TraceDefinition };
                 _ = _baseType.InvokeMember("InitializeAsReader", BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.InvokeMethod, (Binder)null, TraceServer, args);
-                isRunning = true;
+                IsRunning = true;
             }
             catch (Exception)
             {

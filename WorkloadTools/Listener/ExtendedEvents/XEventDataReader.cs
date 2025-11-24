@@ -1,4 +1,4 @@
-﻿using Microsoft.SqlServer.XEvent.Linq;
+using Microsoft.SqlServer.XEvent.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -14,19 +14,19 @@ namespace WorkloadTools.Listener.ExtendedEvents
         public string SessionName { get; set; }
         public IEventQueue Events { get; set; }
         public long EventCount { get; protected set; }
-        public ExtendedEventsWorkloadListener.ServerType ServerType { get; set; }
+        public ExtendedEventsWorkloadListener.ServerTypeEnum ServerType { get; set; }
 
         public XEventDataReader(
                 string connectionString, 
                 string sessionName,
                 IEventQueue events,
-                ExtendedEventsWorkloadListener.ServerType serverType
+                ExtendedEventsWorkloadListener.ServerTypeEnum ServerType
             )  
         {
             ConnectionString = connectionString;
             SessionName = sessionName;
             Events = events;
-            ServerType = serverType;
+            this.ServerType = ServerType;
         }
 
         public abstract void ReadEvents();

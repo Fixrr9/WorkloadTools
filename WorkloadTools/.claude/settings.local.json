@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:\\Users\\Ryan Portcullis\\source\\repos\\workloadtools\" log --oneline -10)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

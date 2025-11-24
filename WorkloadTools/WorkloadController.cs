@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,8 +31,8 @@ namespace WorkloadTools
         {
             try
             {
-				var startTime = Listener.StartAt;
-				var endTime = DateTime.MaxValue;
+                var startTime = Listener.StartAt;
+                var endTime = DateTime.MaxValue;
 
                 Listener.Initialize();
 
@@ -66,10 +66,7 @@ namespace WorkloadTools
                             continue;
                         }
                         
-                        _ = Parallel.ForEach(Consumers, (cons) =>
-                        {
-                            cons.Consume(evt);
-                        });
+                        _ = Parallel.ForEach(Consumers, (cons) => cons.Consume(evt));
                     }
                     catch (Exception e)
                     {
@@ -104,7 +101,8 @@ namespace WorkloadTools
                 logger.Error(e.StackTrace);
 
                 var ex = e;
-                while ((ex = ex.InnerException) != null){
+                while ((ex = ex.InnerException) != null)
+                {
                     logger.Error(ex.Message);
                     logger.Error(ex.StackTrace);
                 }

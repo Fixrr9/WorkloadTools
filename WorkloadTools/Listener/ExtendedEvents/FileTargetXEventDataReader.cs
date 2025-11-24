@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -20,7 +20,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
 
         private bool stopped = false;
 
-        public FileTargetXEventDataReader(string connectionString, string sessionName, IEventQueue events, ExtendedEventsWorkloadListener.ServerType serverType) : base(connectionString, sessionName, events, serverType)
+        public FileTargetXEventDataReader(string connectionString, string sessionName, IEventQueue events, ExtendedEventsWorkloadListener.ServerTypeEnum serverType) : base(connectionString, sessionName, events, serverType)
         {
         }
 
@@ -54,7 +54,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                         ReadXEData(conn, currentIteration);
 
                         // if reading from localdb one iteration is enough
-                        if (ServerType == ExtendedEventsWorkloadListener.ServerType.LocalDB)
+                        if (ServerType == ExtendedEventsWorkloadListener.ServerTypeEnum.LocalDB)
                         {
                             break;
                         }
@@ -96,7 +96,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                 cmd.CommandTimeout = 0;
 
                 var paramPath = cmd.Parameters.Add("@filename", System.Data.SqlDbType.NVarChar, 260);
-                if (ServerType != ExtendedEventsWorkloadListener.ServerType.AzureSqlDatabase)
+                if (ServerType != ExtendedEventsWorkloadListener.ServerTypeEnum.AzureSqlDatabase)
                 {
                     paramPath.Value = currentIteration.GetXEFilePattern();
                 }
@@ -122,7 +122,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                     || currentIteration.StartOffset == currentIteration.MinOffset
                 )
                 {
-                    if (ServerType != ExtendedEventsWorkloadListener.ServerType.LocalDB)
+                    if (ServerType != ExtendedEventsWorkloadListener.ServerTypeEnum.LocalDB)
                     {
                         paramPath.Value = currentIteration.StartFileName;
                     }
@@ -164,7 +164,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                                 var xmldata = (string)reader["event_data"];
                                 var doc = new XmlDocument();
                                 doc.LoadXml(xmldata);
-                                var evt = parseEvent(doc);
+                                var evt = ParseEvent(doc);
 
                                 // skip to the correct event in case we're reading again
                                 // from the same file and we have a reference sequence
@@ -291,11 +291,11 @@ namespace WorkloadTools.Listener.ExtendedEvents
                 END
             ";
 
-            var databaseSuffix = ServerType == ExtendedEventsWorkloadListener.ServerType.AzureSqlDatabase ? "database_" : "";
+            var databaseSuffix = ServerType == ExtendedEventsWorkloadListener.ServerTypeEnum.AzureSqlDatabase ? "database_" : "";
             ReadIteration currentIteration = null;
             using (var cmdPath = conn.CreateCommand())
             {
-                if (ServerType == ExtendedEventsWorkloadListener.ServerType.LocalDB)
+                if (ServerType == ExtendedEventsWorkloadListener.ServerTypeEnum.LocalDB)
                 {
                     cmdPath.CommandText = sqlPathLocaldb;
                 }
@@ -338,7 +338,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
                                 currentIteration.EndSequence = previous.EndSequence;
 
                                 // if reading from localdb we don't need to wait for more data
-                                if (ServerType == ExtendedEventsWorkloadListener.ServerType.LocalDB)
+                                if (ServerType == ExtendedEventsWorkloadListener.ServerTypeEnum.LocalDB)
                                 {
                                     if (
                                         (currentIteration.StartFileName == previous.StartFileName) &&
@@ -368,7 +368,7 @@ namespace WorkloadTools.Listener.ExtendedEvents
         }
 
         // Parses all event data from the the data reader
-        private ExecutionWorkloadEvent parseEvent(XmlDocument doc)
+        private ExecutionWorkloadEvent ParseEvent(XmlDocument doc)
         {
             var evt = new ExecutionWorkloadEvent();
 

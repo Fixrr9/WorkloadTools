@@ -1,4 +1,4 @@
-﻿using NLog;
+using NLog;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -62,9 +62,9 @@ namespace WorkloadTools.Consumer.Analysis
                     while (true)
                     {
                         var toDelete = cachedQueries.Where(t => t.Value.ReferenceCount < 10).ToList();
-                        foreach (var el in toDelete)
+                        foreach (KeyValuePair<long, NormalizedSqlText> el in toDelete)
                         {
-                            _ = cachedQueries.TryRemove(el.Key, out var nst);
+                            _ = cachedQueries.TryRemove(el.Key, out NormalizedSqlText nst);
                         }
                         Thread.Sleep(30000);
                     }
@@ -86,8 +86,8 @@ namespace WorkloadTools.Consumer.Analysis
         {
             try
             {
-                var hashCode = sql.GetHashCode();
-                if (cachedQueries.TryGetValue(hashCode, out var result))
+                int hashCode = sql.GetHashCode();
+                if (cachedQueries.TryGetValue(hashCode, out NormalizedSqlText result))
                 {
                     if (result != null && result.OriginalText == sql)
                     {
@@ -118,7 +118,7 @@ namespace WorkloadTools.Consumer.Analysis
                 OriginalText = sql,
                 NormalizedText = sql
             };
-            var result = normalizedSqlText;
+            NormalizedSqlText result = normalizedSqlText;
 
             if (sql == null)
             {
